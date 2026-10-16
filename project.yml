@@ -1,0 +1,57 @@
+name: NeoSound
+options:
+  bundleIdPrefix: com.elsterlee
+  deploymentTarget:
+    iOS: "27.0"
+  createIntermediateGroups: true
+  developmentLanguage: zh-Hans
+settings:
+  base:
+    DEVELOPMENT_TEAM: D6647H7B4X
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "6.0"
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  NeoSound:
+    type: application
+    platform: iOS
+    sources:
+      - path: NeoSound
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.elsterlee.NeoSound
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: NeoSound
+        INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans
+        INFOPLIST_KEY_UIBackgroundModes: audio
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+  NeoSoundTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: NeoSoundTests
+    dependencies:
+      - target: NeoSound
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.elsterlee.NeoSoundTests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/NeoSound.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NeoSound"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+schemes:
+  NeoSound:
+    build:
+      targets:
+        NeoSound: all
+        NeoSoundTests: [test]
+    test:
+      targets:
+        - NeoSoundTests

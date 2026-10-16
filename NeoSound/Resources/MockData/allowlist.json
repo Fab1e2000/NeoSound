@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "allowlist_version": 7,
+  "generated_at": "2026-10-15T12:00:00Z",
+  "valid_until": "2027-12-31T00:00:00Z",
+  "entries": [
+    {"source_namespace": "synthetic", "item_id": "syn-item-rain", "track_id": "syn-track-rain-30", "revision": "syn-revision-001", "decision": "approved", "policy_version": "syn-policy-001"},
+    {"source_namespace": "synthetic", "item_id": "syn-item-rain", "track_id": "syn-track-rain-long", "revision": "syn-revision-001", "decision": "pending_review", "policy_version": "syn-policy-001"},
+    {"source_namespace": "synthetic", "item_id": "syn-item-waves", "track_id": "syn-track-waves", "revision": "syn-revision-001", "decision": "approved", "policy_version": "syn-policy-001"},
+    {"source_namespace": "synthetic", "item_id": "syn-item-forest", "track_id": "syn-track-forest", "revision": "syn-revision-001", "decision": "approved", "policy_version": "syn-policy-001"},
+    {"source_namespace": "synthetic", "item_id": "syn-item-fire", "track_id": "syn-track-fire", "revision": "syn-revision-001", "decision": "approved", "policy_version": "syn-policy-001"},
+    {"source_namespace": "synthetic", "item_id": "syn-item-pink", "track_id": "syn-track-pink", "revision": "syn-revision-001", "decision": "approved", "policy_version": "syn-policy-001"},
+    {"source_namespace": "synthetic", "item_id": "syn-item-breath", "track_id": "syn-track-breath", "revision": "syn-revision-001", "decision": "pending_review", "policy_version": "syn-policy-001"},
+    {"source_namespace": "synthetic", "item_id": "syn-item-storm", "track_id": "syn-track-storm", "revision": "syn-revision-001", "decision": "approved", "policy_version": "syn-policy-001"}
+  ],
+  "revoked_track_ids": []
+}

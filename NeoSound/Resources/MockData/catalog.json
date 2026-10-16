@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "syn-snapshot-001",
+  "items": [
+    {
+      "item_id": "syn-item-rain",
+      "source_namespace": "synthetic",
+      "title": "窗边细雨",
+      "creator": "NeoSound 示例",
+      "category": "rain",
+      "summary": "雨点轻轻打在窗上，没有雷声，也没有人声，适合入睡前放着听。",
+      "content_revision": "syn-revision-001",
+      "artwork_style": "rain",
+      "tracks": [
+        {
+          "track_id": "syn-track-rain-30",
+          "item_id": "syn-item-rain",
+          "revision": "syn-revision-001",
+          "title": "细雨",
+          "duration_ms": 300000,
+          "delivery": "progressive",
+          "subtitles": [{"id": "rain", "language": "zh-Hans", "format": "webvtt"}]
+        },
+        {
+          "track_id": "syn-track-rain-long",
+          "item_id": "syn-item-rain",
+          "revision": "syn-revision-001",
+          "title": "雨夜加长版",
+          "duration_ms": 2700000,
+          "delivery": "progressive",
+          "subtitles": []
+        }
+      ]
+    },
+    {
+      "item_id": "syn-item-waves",
+      "source_namespace": "synthetic",
+      "title": "远处海浪",
+      "creator": "NeoSound 示例",
+      "category": "nature",
+      "summary": "海浪一阵一阵慢慢涌上来，节奏跟呼吸差不多。",
+      "content_revision": "syn-revision-001",
+      "artwork_style": "waves",
+      "tracks": [
+        {
+          "track_id": "syn-track-waves",
+          "item_id": "syn-item-waves",
+          "revision": "syn-revision-001",
+          "title": "海浪",
+          "duration_ms": 300000,
+          "delivery": "progressive",
+          "subtitles": []
+        }
+      ]
+    },
+    {
+      "item_id": "syn-item-forest",
+      "source_namespace": "synthetic",
+      "title": "夜晚森林",
+      "creator": "NeoSound 示例",
+      "category": "nature",
+      "summary": "低沉的风声穿过树林，声音厚实，适合盖住环境噪音。",
+      "content_revision": "syn-revision-001",
+      "artwork_style": "forest",
+      "tracks": [
+        {
+          "track_id": "syn-track-forest",
+          "item_id": "syn-item-forest",
+          "revision": "syn-revision-001",
+          "title": "林间风声",
+          "duration_ms": 240000,
+          "delivery": "progressive",
+          "subtitles": []
+        }
+      ]
+    },
+    {
+      "item_id": "syn-item-fire",
+      "source_namespace": "synthetic",
+      "title": "篝火噼啪",
+      "creator": "NeoSound 示例",
+      "category": "nature",
+      "summary": "木柴在火里轻轻噼啪作响，温暖又安静。",
+      "content_revision": "syn-revision-001",
+      "artwork_style": "fire",
+      "tracks": [
+        {
+          "track_id": "syn-track-fire",
+          "item_id": "syn-item-fire",
+          "revision": "syn-revision-001",
+          "title": "篝火",
+          "duration_ms": 240000,
+          "delivery": "progressive",
+          "subtitles": []
+        }
+      ]
+    },
+    {
+      "item_id": "syn-item-pink",
+      "source_namespace": "synthetic",
+      "title": "粉红噪音",
+      "creator": "NeoSound 示例",
+      "category": "noise",
+      "summary": "比白噪音柔和，低频多一点，听久了也不刺耳。",
+      "content_revision": "syn-revision-001",
+      "artwork_style": "noise",
+      "tracks": [
+        {
+          "track_id": "syn-track-pink",
+          "item_id": "syn-item-pink",
+          "revision": "syn-revision-001",
+          "title": "粉红噪音",
+          "duration_ms": 240000,
+          "delivery": "progressive",
+          "subtitles": []
+        }
+      ]
+    },
+    {
+      "item_id": "syn-item-breath",
+      "source_namespace": "synthetic",
+      "title": "呼吸引导",
+      "creator": "NeoSound 示例",
+      "category": "breath",
+      "summary": "跟着提示慢慢吸气、呼气，帮助身体放松。",
+      "content_revision": "syn-revision-001",
+      "artwork_style": "breath",
+      "tracks": [
+        {
+          "track_id": "syn-track-breath",
+          "item_id": "syn-item-breath",
+          "revision": "syn-revision-001",
+          "title": "4-7-8 呼吸",
+          "duration_ms": 900000,
+          "delivery": "progressive",
+          "subtitles": []
+        }
+      ]
+    },
+    {
+      "item_id": "syn-item-storm",
+      "source_namespace": "synthetic",
+      "title": "雷雨之夜",
+      "creator": null,
+      "category": "rain",
+      "summary": "远处有雷声的大雨。",
+      "content_revision": "syn-revision-002",
+      "artwork_style": "storm",
+      "tracks": [
+        {
+          "track_id": "syn-track-storm",
+          "item_id": "syn-item-storm",
+          "revision": "syn-revision-002",
+          "title": "雷雨",
+          "duration_ms": null,
+          "delivery": "progressive",
+          "subtitles": []
+        }
+      ]
+    }
+  ],
+  "next_cursor": null
+}
