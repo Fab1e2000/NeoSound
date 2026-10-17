@@ -14,15 +14,15 @@ nonisolated enum ASMRAPIError: LocalizedError {
 }
 nonisolated enum TokenVault {
     static let service = "com.elsterlee.NeoSound.asmr"
-    static func read() -> String? {
+    static func read(account: String = "token") -> String? {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                               kSecAttrAccount as String: "token", kSecReturnData as String: true]
+                               kSecAttrAccount as String: account, kSecReturnData as String: true]
         var value: CFTypeRef?
         guard SecItemCopyMatching(q as CFDictionary, &value) == errSecSuccess, let data = value as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
-    static func save(_ token: String?) throws {
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "token"]
+    static func save(_ token: String?, account: String = "token") throws {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
         if let token {
             let attrs: [String: Any] = [kSecValueData as String: Data(token.utf8), kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
             var status = SecItemUpdate(q as CFDictionary, attrs as CFDictionary)

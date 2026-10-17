@@ -24,7 +24,7 @@ final class ASMRStore {
         defaults.set(try? JSONEncoder().encode(user),forKey:"sessionUser")
         defaults.set(sessionCacheKey,forKey:"sessionUserKey")
     }
-    init(defaults: UserDefaults = .standard, client: ASMRClient? = nil, saveToken: @escaping (String?) throws -> Void = TokenVault.save) {
+    init(defaults: UserDefaults = .standard, client: ASMRClient? = nil, saveToken: @escaping (String?) throws -> Void = { try TokenVault.save($0) }) {
         self.saveToken = saveToken
         self.defaults = defaults
         let host = defaults.string(forKey:"apiHost") ?? ASMRClient.hosts[0]
@@ -115,20 +115,26 @@ final class WorkFeed {
     private(set) var page = 0
     private(set) var total = 0
     private(set) var hasNext = false
+    /// Consecutive pages whose works were all filtered out; automatic paging pauses after a few.
+    private(set) var emptyPages = 0
+    var pausedOnFilteredPages: Bool { emptyPages >= 3 }
     private var generation = 0
-    func clear() { generation += 1; works = []; loading = false; page = 0; total = 0; hasNext = false; error = nil }
+    func clear() { generation += 1; works = []; loading = false; page = 0; total = 0; hasNext = false; error = nil; emptyPages = 0 }
     func load(reset: Bool, automatically: Bool = false, fetch: (Int) async throws -> WorkPage) async {
-        if automatically && error != nil { return }
+        if automatically && (error != nil || pausedOnFilteredPages) { return }
         if !reset && (loading || !hasNext) { return }
         generation += 1; let ticket = generation
         loading = true; error = nil
+        if !automatically { emptyPages = 0 } // A manual request resumes automatic paging.
         let requestedPage = reset ? 1 : page + 1
         do {
             let response = try await fetch(requestedPage)
             try Task.checkCancellation()
             guard generation == ticket else { return }
             var seen = Set<Int>()
-            works = ((reset ? [] : works) + response.works).filter { seen.insert($0.id).inserted }
+            let visible = response.works.filter(ContentFilter.allows)
+            emptyPages = visible.isEmpty && !response.works.isEmpty ? (reset ? 1 : emptyPages + 1) : 0
+            works = ((reset ? [] : works) + visible).filter { seen.insert($0.id).inserted }
             page = response.pagination.currentPage; total = response.pagination.totalCount
             hasNext = response.pagination.hasNext
         } catch {

@@ -18,8 +18,10 @@ struct WorkBrowser: View {
                 WorkGrid(works:feed.works,loading:feed.loading)
                 if feed.loading && !feed.works.isEmpty { ProgressView().frame(maxWidth:.infinity) }
                 if let error = feed.error { RetryRow(message:error) { Task { await load(reset:feed.page == 0) } } }
-                if !feed.loading && feed.works.isEmpty && feed.error == nil { ContentUnavailableView("暂无作品",systemImage:"waveform",description:Text("试试其他筛选条件。")) }
-                if feed.hasNext && feed.error == nil {
+                if !feed.loading && feed.works.isEmpty && feed.error == nil && !feed.hasNext { ContentUnavailableView("暂无作品",systemImage:"waveform",description:Text("试试其他筛选条件。")) }
+                if feed.hasNext && feed.error == nil && feed.pausedOnFilteredPages && !feed.loading {
+                    Button("继续查找更多作品") { Task { await load(reset:false) } }.frame(maxWidth:.infinity).padding(.vertical,8)
+                } else if feed.hasNext && feed.error == nil {
                     Color.clear.frame(height:1)
                         .onScrollVisibilityChange(threshold:0.1) { paginationVisible = $0 }
                         .onChange(of:paginationVisible) { loadMoreIfVisible() }
@@ -170,7 +172,7 @@ struct ItemCard: View {
         .clipShape(.rect(cornerRadius:12))
     }
     private func chip(_ title: String, namespace: String, color: Color) -> some View {
-        NavigationLink { WorkBrowser(title:title,keyword:"$\(namespace):\(title)$") } label: {
+        NavigationLink(value:WorkQuery(title:title,keyword:"$\(namespace):\(title)$")) {
             Text(title).font(.caption2).lineLimit(1).padding(.horizontal,6).padding(.vertical,3)
                 .foregroundStyle(color).background(color.opacity(0.12),in:Capsule())
         }.buttonStyle(.plain)

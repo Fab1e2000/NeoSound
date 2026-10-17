@@ -17,6 +17,13 @@ struct ItemDetailView: View {
     private var audios: [TrackEntry] { entries.filter { $0.node.type == "audio" } }
     private var folders: [String] { entries.reduce(into:[]) { if !$0.contains($1.path) { $0.append($1.path) } } }
     var body: some View {
+        if ContentFilter.allows(work) {
+            content
+        } else {
+            ContentUnavailableView("作品不可用",systemImage:"eye.slash",description:Text("该作品含有不适合全年龄浏览的内容。"))
+        }
+    }
+    private var content: some View {
         List {
             Section {
                 VStack(spacing:12) {
@@ -41,15 +48,15 @@ struct ItemDetailView: View {
             }.pickerStyle(.segmented).listRowBackground(Color.clear).listRowInsets(EdgeInsets(top:0,leading:0,bottom:0,trailing:0))
             if section == "info" {
             if let circle = work.circle {
-                Section("社团") { NavigationLink(circle.name) { WorkBrowser(title:circle.name,keyword:"$circle:\(circle.name)$") } }
+                Section("社团") { NavigationLink(circle.name,value:WorkQuery.circle(circle.name)) }
             }
             if let vas = work.vas, !vas.isEmpty {
-                Section("声优") { ForEach(vas) { person in NavigationLink(person.name) { WorkBrowser(title:person.name,keyword:"$va:\(person.name)$") } } }
+                Section("声优") { ForEach(vas) { person in NavigationLink(person.name,value:WorkQuery.va(person.name)) } }
             }
             if let tags = work.tags, !tags.isEmpty {
                 Section("标签") {
                     ScrollView(.horizontal,showsIndicators:false) {
-                        HStack { ForEach(tags) { tag in NavigationLink { WorkBrowser(title:tag.name,keyword:"$tag:\(tag.name)$") } label: { Text(tag.name).font(.caption).padding(8).background(.quaternary,in:Capsule()) } } }
+                        HStack { ForEach(tags) { tag in NavigationLink(value:WorkQuery.tag(tag.name)) { Text(tag.name).font(.caption).padding(8).background(.quaternary,in:Capsule()) } } }
                     }
                 }
             }

@@ -8,8 +8,42 @@ import Testing
         #expect(WorkTitle.cleaned("【耳かき】癒やしの時間【バイノーラル】") == "癒やしの時間")
         #expect(WorkTitle.cleaned("前 【特典】 後") == "前 後")
         #expect(WorkTitle.cleaned("【只有括号】") == "【只有括号】")
+        #expect(WorkTitle.cleaned("[KU100]添い寝(CV:花岩香奈)［中文字幕］耳かき（音声）") == "添い寝 耳かき")
         #expect(WorkTitle.isJapanese("ゆっくりおやすみなさい、お兄ちゃん"))
         #expect(!WorkTitle.isJapanese("在雨声中慢慢入睡吧"))
+    }
+    @Test func contentFilterHidesAdultWorksAndPausesOnFilteredPages() async {
+        var adult = ASMRWork(id:1,title:"a"); adult.nsfw = true
+        var flagged = ASMRWork(id:2,title:"b"); flagged.nsfw = true
+        var clean = ASMRWork(id:3,title:"c"); clean.nsfw = false
+        #expect(!ContentFilter.allows(adult) && ContentFilter.allows(clean) && ContentFilter.allows(ASMRWork(id:4,title:"d")))
+        let feed = WorkFeed()
+        let filtered = WorkPage(works:[adult,flagged],pagination:Pagination(currentPage:1,pageSize:2,totalCount:20))
+        await feed.load(reset:true) { _ in filtered }
+        for _ in 0..<2 { await feed.load(reset:false,automatically:true) { _ in filtered } }
+        #expect(feed.works.isEmpty && feed.pausedOnFilteredPages)
+        await feed.load(reset:false,automatically:true) { _ in Issue.record("Automatic paging should pause"); return filtered }
+        await feed.load(reset:false) { _ in WorkPage(works:[clean],pagination:Pagination(currentPage:2,pageSize:2,totalCount:20)) }
+        #expect(feed.works.map(\.id) == [3] && !feed.pausedOnFilteredPages)
+    }
+    @Test func deepSeekTranslationRequestCarriesNumberedTitles() throws {
+        let request = try DeepSeekTitleAPI.request(titles:["耳かき","添い寝"],apiKey:"test-key")
+        #expect(request.url?.absoluteString == "https://api.deepseek.com/chat/completions")
+        #expect(request.value(forHTTPHeaderField:"Authorization") == "Bearer test-key")
+        let body = try #require(JSONSerialization.jsonObject(with:request.httpBody!) as? [String:Any])
+        #expect(body["model"] as? String == "deepseek-flash")
+        #expect((body["thinking"] as? [String:Any])?["type"] as? String == "disabled")
+        #expect((body["response_format"] as? [String:Any])?["type"] as? String == "json_object")
+        let messages = try #require(body["messages"] as? [[String:Any]])
+        #expect((messages[0]["content"] as? String)?.contains("JSON") == true)
+        #expect((messages[1]["content"] as? String)?.contains(#"{"id":1,"title":"添い寝"}"#) == true)
+    }
+    @Test func deepSeekTranslationParsesByIDAndIgnoresTruncation() throws {
+        let titles = ["耳かき","添い寝"]
+        let ok = Data(#"{"choices":[{"finish_reason":"stop","message":{"content":"{\"translations\":[{\"id\":1,\"title\":\"陪睡\"},{\"id\":0,\"title\":\" 掏耳 \"},{\"id\":9,\"title\":\"x\"}]}"}}]}"#.utf8)
+        #expect(try DeepSeekTitleAPI.parse(ok,titles:titles) == ["耳かき":"掏耳","添い寝":"陪睡"])
+        let cut = Data(#"{"choices":[{"finish_reason":"length","message":{"content":"{\"transl"}}]}"#.utf8)
+        #expect(try DeepSeekTitleAPI.parse(cut,titles:titles).isEmpty)
     }
     @Test func searchEscapesSinglePathSegment() throws {
         let keyword = "耳かき / + % ? #"

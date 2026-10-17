@@ -6,6 +6,8 @@ struct SettingsView: View {
     @AppStorage("showsSourceID") private var showsSourceID = false
     @Environment(ASMRStore.self) private var store
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(TitleTranslator.self) private var translator
+    @State private var apiKey = ""
     var body: some View {
         @Bindable var store = store
         List {
@@ -24,7 +26,20 @@ struct SettingsView: View {
             Section("浏览") {
                 Toggle("标题翻译成中文",isOn:$translatesTitles)
                 Toggle("卡片显示 RJ 号",isOn:$showsSourceID)
-                Text("日语标题使用 Apple 设备端翻译模型，首次使用需下载日语→中文语言包。") .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section {
+                if translator.hasKey {
+                    LabeledContent("DeepSeek API Key",value:"已保存")
+                    Button("移除 API Key",role:.destructive) { saveKey(nil) }
+                } else {
+                    SecureField("粘贴 DeepSeek API Key",text:$apiKey)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .onSubmit { saveKey(apiKey) }
+                    Button("保存") { saveKey(apiKey) }.disabled(apiKey.trimmingCharacters(in:.whitespaces).isEmpty)
+                }
+                if let error = translator.lastError { Text(error).font(.footnote).foregroundStyle(.red) }
+            } header: { Text("标题翻译") } footer: {
+                Text("日语标题由 DeepSeek（deepseek-flash）翻译，按 API 用量计费；译文缓存在本机，每个标题只翻译一次。Key 只存在本机 Keychain，只发送给 api.deepseek.com。")
             }
             Section("播放") {
                 Toggle("优先流畅音质",isOn:$store.preferSmall)
@@ -43,6 +58,9 @@ struct SettingsView: View {
                 Link("ASMR.ONE 网站",destination:URL(string:"https://asmr.one/")!)
             }
         }.navigationTitle("设置")
+    }
+    private func saveKey(_ key: String?) {
+        do { try translator.setAPIKey(key); apiKey = "" } catch { store.report(error) }
     }
 }
 struct AccountView: View {

@@ -1,11 +1,9 @@
 import SwiftUI
-import Translation
 
 struct RootView: View {
     @Environment(ASMRStore.self) private var store
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
-    @Environment(TitleTranslator.self) private var translator
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         @Bindable var router = router
@@ -21,7 +19,6 @@ struct RootView: View {
             }
         }
         .sheet(isPresented:$router.showsPlayer) { PlayerView().preferredColorScheme(.dark) }
-        .translationTask(translator.configuration) { await translator.run($0) }
         .task(id:scenePhase) {
             if scenePhase == .active { await store.refreshSession() }
         }
@@ -32,8 +29,20 @@ struct RootView: View {
         } message: { Text(store.message ?? playback.notice ?? "") }
     }
 }
+/// A filtered work list reached from a tag, circle or voice actor.
+struct WorkQuery: Hashable {
+    let title: String
+    let keyword: String
+    static func tag(_ name: String) -> WorkQuery { WorkQuery(title:name,keyword:"$tag:\(name)$") }
+    static func circle(_ name: String) -> WorkQuery { WorkQuery(title:name,keyword:"$circle:\(name)$") }
+    static func va(_ name: String) -> WorkQuery { WorkQuery(title:name,keyword:"$va:\(name)$") }
+}
 extension View {
-    func workDestinations() -> some View { navigationDestination(for:ASMRWork.self) { ItemDetailView(item:$0) } }
+    /// All in-stack navigation is value-based; mixing destination-closure links with value links resets pushed pages.
+    func workDestinations() -> some View {
+        navigationDestination(for:ASMRWork.self) { ItemDetailView(item:$0) }
+            .navigationDestination(for:WorkQuery.self) { WorkBrowser(title:$0.title,keyword:$0.keyword) }
+    }
 }
 
 private enum AppSheet: String, Identifiable {
