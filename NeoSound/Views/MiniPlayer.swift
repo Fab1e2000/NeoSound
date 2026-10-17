@@ -3,23 +3,20 @@ import SwiftUI
 struct MiniPlayer: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
 
     var body: some View {
         if let current = playback.current {
             HStack(spacing: 12) {
-                ArtworkView(style: current.item.artwork, cornerRadius: 8, symbolScale: 0.5)
+                WorkArtwork(work: current.item, radius: 8)
                     .frame(width: 32, height: 32)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(current.item.title)
                         .font(.subheadline.weight(.medium))
                         .lineLimit(1)
-                    if placement != .inline {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Button {
@@ -31,16 +28,14 @@ struct MiniPlayer: View {
                         .contentTransition(.symbolEffect(.replace))
                 }
                 .accessibilityLabel(playback.isPlaying ? "暂停" : "播放")
-                if placement != .inline {
-                    Button {
-                        playback.skip(by: 15)
-                    } label: {
-                        Image(systemName: "goforward.15")
-                            .font(.title3)
-                            .frame(width: 36, height: 36)
-                    }
-                    .accessibilityLabel("前进 15 秒")
+                Button {
+                    playback.skip(by: 15)
+                } label: {
+                    Image(systemName: "goforward.15")
+                        .font(.title3)
+                        .frame(width: 36, height: 36)
                 }
+                .accessibilityLabel("前进 15 秒")
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)

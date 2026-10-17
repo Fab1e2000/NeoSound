@@ -50,3 +50,26 @@ nonisolated enum WebVTT {
         return total
     }
 }
+
+extension WebVTT {
+    nonisolated static func parseSubtitle(_ data: Data, filename: String) -> [SubtitleCue] {
+        guard data.count <= maxBytes, let text = String(data:data, encoding:.utf8) else { return [] }
+        if filename.lowercased().hasSuffix(".srt") {
+            let normalized = text.replacingOccurrences(of:"\r\n",with:"\n")
+                .replacingOccurrences(of:",",with:".")
+            return parse(Data(("WEBVTT\n\n" + normalized).utf8))
+        }
+        if filename.lowercased().hasSuffix(".lrc") {
+            guard let regex = try? NSRegularExpression(pattern: #"\[(\d+):(\d+(?:\.\d+)?)\](.*)"#) else { return [] }
+            let ns = text as NSString
+            let values = regex.matches(in:text, range:NSRange(location:0,length:ns.length)).compactMap { match -> (Double,String)? in
+                guard let minutes = Double(ns.substring(with:match.range(at:1))), let seconds = Double(ns.substring(with:match.range(at:2))) else { return nil }
+                return (minutes * 60 + seconds, ns.substring(with:match.range(at:3)))
+            }.sorted { $0.0 < $1.0 }
+            return values.enumerated().map { index, value in
+                SubtitleCue(start:value.0,end:index + 1 < values.count ? values[index + 1].0 : value.0 + 15,text:value.1)
+            }
+        }
+        return parse(data)
+    }
+}

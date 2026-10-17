@@ -29,13 +29,13 @@ nonisolated enum SleepFade {
 @Observable
 final class PlaybackCoordinator {
     private(set) var phase: PlaybackPhase = .idle
-    private(set) var current: AdmittedTrack?
+    private(set) var current: PlayingTrack?
     private(set) var elapsed: TimeInterval = 0
     private(set) var duration: TimeInterval?
     private(set) var activeCue: String?
     private(set) var sleepMode: SleepTimerMode = .off
     private(set) var sleepRemaining: TimeInterval?
-    /// 需要告诉用户的一次性提示（例如音轨被撤销）。
+    /// 需要告诉用户的一次性播放提示。
     var notice: String?
     var subtitlesEnabled = true {
         didSet { activeCue = subtitlesEnabled ? WebVTT.activeCue(in: cues, at: elapsed)?.text : nil }
@@ -46,11 +46,19 @@ final class PlaybackCoordinator {
     var isPlaying: Bool { phase == .playing || phase == .buffering }
     var hasSubtitles: Bool { !cues.isEmpty }
 
-    private let library: Library
-    private let resolver: BundledMediaResolver
-    @ObservationIgnored var artworkProvider: ((ArtworkStyle) -> UIImage?)?
+    private let store: ASMRStore
+    private(set) var queue: [PlayingTrack] = []
+    var repeatMode = 0 // 0: stop at end, 1: repeat queue, 2: repeat track
+    var playbackRate: Float = 1 { didSet { if isPlaying { player.rate = playbackRate }; updateNowPlaying() } }
+    @ObservationIgnored private var loadTask: Task<Void, Never>?
+    @ObservationIgnored private var subtitleTask: Task<Void, Never>?
+    private(set) var subtitleName: String?
+    var queueIndex: Int? { current.flatMap { value in queue.firstIndex { $0.id == value.id } } }
+
     @ObservationIgnored private let player = AVPlayer()
     @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var wantsPlayback = false
+    @ObservationIgnored private var stopAtEnd = false
     @ObservationIgnored private var cues: [SubtitleCue] = []
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
@@ -61,9 +69,8 @@ final class PlaybackCoordinator {
     @ObservationIgnored private var resumeAfterInterruption = false
     @ObservationIgnored private var nowPlayingArtwork: MPMediaItemArtwork?
 
-    init(library: Library, resolver: BundledMediaResolver = BundledMediaResolver()) {
-        self.library = library
-        self.resolver = resolver
+    init(store: ASMRStore) {
+        self.store = store
         player.automaticallyWaitsToMinimizeStalling = true
         player.publisher(for: \.timeControlStatus)
             .receive(on: RunLoop.main)
@@ -76,19 +83,58 @@ final class PlaybackCoordinator {
 
     // MARK: 播放控制
 
-    func play(_ track: Track, in item: CatalogItem) {
-        generation += 1
+    func play(_ track: TrackEntry, in item: ASMRWork, tracks: [TrackEntry]? = nil) {
+        if let tracks { queue = tracks.filter { $0.node.type == "audio" && $0.node.stream(preferSmall: store.preferSmall) != nil }.map { PlayingTrack(item:item, track:$0) } }
+        let selected = PlayingTrack(item:item, track:track)
+        if !queue.contains(where: { $0.id == selected.id }) { queue.append(selected) }
+        start(selected)
+    }
+    private func start(_ selected: PlayingTrack) {
+        loadTask?.cancel(); subtitleTask?.cancel(); generation += 1
         let ticket = generation
-        switch library.evaluate(track, in: item) {
-        case .failure(let denial):
-            phase = .failed(denial.userMessage)
-        case .success(let admitted):
-            if current?.track.id == track.id, phase != .idle {
-                resume()
-                return
-            }
-            phase = .resolving
-            Task { await load(admitted, ticket: ticket) }
+        player.pause(); player.replaceCurrentItem(with:nil); itemCancellables.removeAll()
+        wantsPlayback = true
+        current = selected; elapsed = 0; duration = selected.track.duration
+        cues = []; activeCue = nil; subtitleName = nil; nowPlayingArtwork = nil
+        isScrubbing = false; phase = .resolving
+        loadTask = Task { await load(selected, ticket:ticket) }
+    }
+    func enqueue(_ track: TrackEntry, in item: ASMRWork) {
+        guard track.node.type == "audio" else { return }
+        let value = PlayingTrack(item:item, track:track)
+        if !queue.contains(where: { $0.id == value.id }) { queue.append(value) }
+    }
+    func removeFromQueue(_ id: String) { if id != current?.id { queue.removeAll { $0.id == id } } }
+    func next() {
+        guard let index = queueIndex, !queue.isEmpty else { return }
+        if index + 1 < queue.count { start(queue[index + 1]) }
+        else if repeatMode == 1 { start(queue[0]) }
+    }
+    func previous() {
+        guard let index = queueIndex else { return }
+        if elapsed > 3 { seek(to:0) }
+        else if index > 0 { start(queue[index - 1]) }
+    }
+    func selectQueue(_ item: PlayingTrack) { start(item) }
+    func shuffleRemaining() {
+        guard let current else { return }
+        queue = [current] + queue.filter { $0.id != current.id }.shuffled()
+    }
+    func retry() { if let current { start(current) } }
+    func loadSubtitle(_ entry: TrackEntry) {
+        guard let url = entry.node.mediaStreamUrl ?? entry.node.mediaDownloadUrl, let current else { return }
+        let ticket = generation
+        subtitleTask?.cancel()
+        subtitleTask = Task {
+            do {
+                let (data, response) = try await URLSession.shared.data(from:url)
+                guard (response as? HTTPURLResponse)?.statusCode == 200, data.count < 2_000_000 else { throw ASMRAPIError.invalidResponse }
+                try Task.checkCancellation()
+                guard ticket == generation, self.current?.id == current.id else { return }
+                let parsed = WebVTT.parseSubtitle(data, filename:entry.title)
+                guard !parsed.isEmpty else { throw ASMRAPIError.invalidResponse }
+                cues = parsed; subtitleName = entry.title; updateCue()
+            } catch { if ticket == generation, !(error is CancellationError) { notice = "字幕载入失败：" + error.localizedDescription } }
         }
     }
 
@@ -97,6 +143,7 @@ final class PlaybackCoordinator {
     }
 
     func pause() {
+        wantsPlayback = false
         resumeAfterInterruption = false
         player.pause()
         if current != nil { phase = .paused }
@@ -104,15 +151,13 @@ final class PlaybackCoordinator {
     }
 
     func resume() {
-        guard let current else { return }
-        // 恢复播放同样要过准入。
-        guard case .success = library.evaluate(current.track, in: current.item) else {
-            stop(notice: "这条音轨已下架，播放已停止")
-            return
-        }
+        wantsPlayback = true
+        guard current != nil else { return }
+        if case .failed = phase { retry(); return }
+        guard player.currentItem != nil else { return }
         if phase == .ended { seek(to: 0) }
         activateSession()
-        player.play()
+        player.playImmediately(atRate: playbackRate)
     }
 
     func skip(by seconds: TimeInterval) {
@@ -131,10 +176,11 @@ final class PlaybackCoordinator {
     }
 
     func stop(notice: String? = nil) {
-        generation += 1
+        loadTask?.cancel(); subtitleTask?.cancel(); generation += 1
         player.pause()
         player.replaceCurrentItem(with: nil)
         itemCancellables.removeAll()
+        wantsPlayback = false; queue = []; subtitleName = nil
         current = nil
         phase = .idle
         elapsed = 0
@@ -148,14 +194,6 @@ final class PlaybackCoordinator {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    /// 白名单变化后复核当前音轨；不再准入则立即停止并清理。
-    func revalidate() {
-        guard let current else { return }
-        if case .failure = library.evaluate(current.track, in: current.item) {
-            stop(notice: "「\(current.track.title)」已下架，播放已停止")
-        }
-    }
-
     // MARK: 睡眠定时
 
     func setSleepTimer(_ mode: SleepTimerMode) {
@@ -163,6 +201,7 @@ final class PlaybackCoordinator {
         sleepTask = nil
         player.volume = 1
         sleepMode = mode
+        stopAtEnd = mode == .endOfTrack
         switch mode {
         case .off:
             sleepDeadline = nil
@@ -197,56 +236,38 @@ final class PlaybackCoordinator {
             player.volume = SleepFade.volume(remaining: remaining, fadeEnabled: fadeOut)
         }
         if remaining <= 0 {
-            pause()
-            setSleepTimer(.off)
+            let wasEnd = sleepMode == .endOfTrack
+            pause(); setSleepTimer(.off)
+            stopAtEnd = wasEnd
         }
     }
 
     // MARK: 载入
 
-    private func load(_ admitted: AdmittedTrack, ticket: Int) async {
+    private func load(_ selected: PlayingTrack, ticket: Int) async {
         do {
-            let grant = try await resolver.grant(for: admitted)
-            guard ticket == generation else { return }
+            guard let url = selected.track.node.stream(preferSmall:store.preferSmall) else { throw ASMRAPIError.invalidResponse }
             phase = .preparing
-            let asset = AVURLAsset(url: grant.url)
-            let (playable, assetDuration) = try await asset.load(.isPlayable, .duration)
+            let asset = AVURLAsset(url:url)
+            let playable = try await asset.load(.isPlayable)
+            try Task.checkCancellation()
             guard ticket == generation else { return }
-            guard playable else {
-                phase = .failed("暂不支持此资源")
-                return
-            }
-            // 异步期间白名单可能变了，挂上播放器前再复核一次。
-            guard case .success(let fresh) = library.evaluate(admitted.track, in: admitted.item) else {
-                phase = .failed("此音轨暂时不能播放")
-                return
-            }
-            current = fresh
-            let seconds = assetDuration.seconds
-            duration = assetDuration.isNumeric && seconds > 0 ? seconds : admitted.track.duration
-            elapsed = 0
-            cues = loadCues(for: fresh)
-            activeCue = nil
-            nowPlayingArtwork = makeArtwork(for: fresh.item.artwork)
-
-            let item = AVPlayerItem(asset: asset)
-            observe(item)
-            player.replaceCurrentItem(with: item)
-            player.volume = 1
+            guard playable else { throw ASMRAPIError.invalidResponse }
+            let item = AVPlayerItem(asset:asset)
+            observe(item); player.replaceCurrentItem(with:item); player.volume = 1
             activateSession()
-            player.play()
+            if wantsPlayback { player.playImmediately(atRate:playbackRate) } else { phase = .paused }
             updateNowPlaying()
+            if let cover = selected.item.coverURL {
+                if let (data, _) = try? await URLSession.shared.data(from:cover), let image = UIImage(data:data), ticket == generation {
+                    nowPlayingArtwork = MPMediaItemArtwork(boundsSize:image.size) { @Sendable _ in image }
+                    updateNowPlaying()
+                }
+            }
         } catch {
-            guard ticket == generation else { return }
-            phase = .failed("播放失败，请稍后再试")
+            guard ticket == generation, !(error is CancellationError) else { return }
+            phase = .failed("播放失败，点播放重试")
         }
-    }
-
-    private func loadCues(for admitted: AdmittedTrack) -> [SubtitleCue] {
-        guard let ref = admitted.track.subtitles.first,
-              let url = resolver.subtitleURL(for: ref, admitted: admitted),
-              let data = try? Data(contentsOf: url) else { return [] }
-        return WebVTT.parse(data)
     }
 
     private func observe(_ item: AVPlayerItem) {
@@ -266,8 +287,9 @@ final class PlaybackCoordinator {
     private func didFinish() {
         phase = .ended
         if let duration { elapsed = duration }
-        if sleepMode == .endOfTrack { setSleepTimer(.off) }
-        updateNowPlaying()
+        if sleepMode == .endOfTrack || stopAtEnd { pause(); setSleepTimer(.off); phase = .ended; updateNowPlaying(); return }
+        if repeatMode == 2 { seek(to:0); resume(); return }
+        next(); updateNowPlaying()
     }
 
     private func syncPhase(with status: AVPlayer.TimeControlStatus) {
@@ -297,6 +319,7 @@ final class PlaybackCoordinator {
     private func tick(_ seconds: TimeInterval) {
         guard current != nil, !isScrubbing, seconds.isFinite else { return }
         elapsed = seconds
+        if let value = player.currentItem?.duration.seconds, value.isFinite, value > 0 { duration = value }
         updateCue()
     }
 
@@ -333,12 +356,13 @@ final class PlaybackCoordinator {
         guard let type, let kind = AVAudioSession.InterruptionType(rawValue: type) else { return }
         switch kind {
         case .began:
-            resumeAfterInterruption = isPlaying
+            resumeAfterInterruption = wantsPlayback
+            wantsPlayback = false
             if current != nil, phase != .ended { phase = .paused }
             updateNowPlaying()
         case .ended:
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: options ?? 0).contains(.shouldResume)
-            // 打断期间用户手动暂停、定时已结束或被撤销，都不自动恢复。
+            // 打断期间用户手动暂停、定时已结束或已停止，都不自动恢复。
             if shouldResume, resumeAfterInterruption { resume() }
             resumeAfterInterruption = false
         @unknown default:
@@ -379,13 +403,12 @@ final class PlaybackCoordinator {
             Task { @MainActor in self?.seek(to: position) }
             return .success
         }
-        rc.nextTrackCommand.isEnabled = false
-        rc.previousTrackCommand.isEnabled = false
-    }
-
-    private func makeArtwork(for style: ArtworkStyle) -> MPMediaItemArtwork? {
-        guard let image = artworkProvider?(style) else { return nil }
-        return MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }
+        rc.nextTrackCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in self?.next() }; return .success
+        }
+        rc.previousTrackCommand.addTarget { @Sendable [weak self] _ in
+            Task { @MainActor in self?.previous() }; return .success
+        }
     }
 
     private func updateNowPlaying() {
@@ -397,8 +420,10 @@ final class PlaybackCoordinator {
             MPMediaItemPropertyTitle: current.track.title,
             MPMediaItemPropertyAlbumTitle: current.item.title,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(playbackRate) : 0.0,
         ]
+        MPRemoteCommandCenter.shared().nextTrackCommand.isEnabled = (queueIndex.map { $0 + 1 < queue.count } ?? false) || repeatMode == 1
+        MPRemoteCommandCenter.shared().previousTrackCommand.isEnabled = queueIndex != nil
         if let creator = current.item.creator { info[MPMediaItemPropertyArtist] = creator }
         if let duration { info[MPMediaItemPropertyPlaybackDuration] = duration }
         if let nowPlayingArtwork { info[MPMediaItemPropertyArtwork] = nowPlayingArtwork }

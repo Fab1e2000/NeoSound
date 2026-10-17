@@ -20,6 +20,10 @@ targets:
     platform: iOS
     sources:
       - path: NeoSound
+        excludes:
+          - Resources/MockData
+          - Resources/Audio
+          - Resources/Subtitles
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.elsterlee.NeoSound

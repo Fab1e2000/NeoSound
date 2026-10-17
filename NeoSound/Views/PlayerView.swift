@@ -4,9 +4,11 @@ import SwiftUI
 
 struct PlayerView: View {
     @Environment(PlaybackCoordinator.self) private var playback
-    @Environment(Library.self) private var library
+    @Environment(ASMRStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var showsTimer = false
+    @State private var showsQueue = false
+    @State private var reviewWork: ASMRWork?
     @State private var scrubValue: TimeInterval = 0
 
     var body: some View {
@@ -22,13 +24,15 @@ struct PlayerView: View {
         }
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $showsTimer) { SleepTimerSheet() }
+        .sheet(isPresented: $showsQueue) { QueueView() }
+        .sheet(item:$reviewWork) { ReviewEditor(work:$0) }
         .onChange(of: playback.phase) {
             if playback.phase == .idle { dismiss() }
         }
     }
 
-    private func content(_ current: AdmittedTrack) -> some View {
-        VStack(spacing: 22) {
+    private func content(_ current: PlayingTrack) -> some View {
+        ScrollView { VStack(spacing: 22) {
             artwork(current)
 
             HStack(alignment: .center, spacing: 12) {
@@ -42,15 +46,15 @@ struct PlayerView: View {
                 .lineLimit(1)
                 Spacer(minLength: 0)
                 Button {
-                    library.toggleFavorite(current.item)
+                    reviewWork = current.item
                 } label: {
-                    Image(systemName: library.isFavorite(current.item) ? "heart.fill" : "heart")
+                    Image(systemName: "heart")
                         .frame(width: 24, height: 24)
                         .contentTransition(.symbolEffect(.replace))
                 }
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
-                .accessibilityLabel(library.isFavorite(current.item) ? "取消收藏" : "收藏")
+                .accessibilityLabel("管理网站收藏")
             }
 
             progress
@@ -66,7 +70,17 @@ struct PlayerView: View {
             VolumeSlider()
                 .frame(height: 34)
 
+            HStack {
+                Button { playback.previous() } label: { Image(systemName:"backward.end.fill") }.accessibilityLabel("上一首")
+                Spacer()
+                Menu { ForEach([0.75,1.0,1.25,1.5,2.0],id:\.self) { rate in Button("\(rate.formatted())×") { playback.playbackRate = Float(rate) } } } label: { Text("\(Double(playback.playbackRate).formatted())×") }
+                Spacer()
+                Button { showsQueue = true } label: { Image(systemName:"list.bullet") }.accessibilityLabel("播放队列")
+                Spacer()
+                Button { playback.next() } label: { Image(systemName:"forward.end.fill") }.accessibilityLabel("下一首")
+            }
             bottomBar
+        }
         }
         .foregroundStyle(.white)
         .tint(.white)
@@ -76,8 +90,8 @@ struct PlayerView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    private func artwork(_ current: AdmittedTrack) -> some View {
-        ArtworkView(style: current.item.artwork, cornerRadius: 22, symbolScale: 0.34)
+    private func artwork(_ current: PlayingTrack) -> some View {
+        WorkArtwork(work: current.item, radius: 22)
             .aspectRatio(1, contentMode: .fit)
             .overlay(alignment: .bottom) {
                 if let cue = playback.activeCue {

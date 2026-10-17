@@ -2,32 +2,21 @@ import SwiftUI
 
 @main
 struct NeoSoundApp: App {
-    @State private var library: Library
+    @State private var store: ASMRStore
     @State private var playback: PlaybackCoordinator
     @State private var router = AppRouter()
-
+    @AppStorage("appearance") private var appearance = "system"
     init() {
-        let library = Library()
-        library.loadBundledFixtures()
-        let playback = PlaybackCoordinator(library: library)
-        playback.artworkProvider = { ArtworkView.renderImage($0) }
-        _library = State(initialValue: library)
-        _playback = State(initialValue: playback)
+        let store = ASMRStore()
+        _store = State(initialValue: store)
+        _playback = State(initialValue: PlaybackCoordinator(store: store))
     }
-
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(library)
-                .environment(playback)
-                .environment(router)
-                .preferredColorScheme(.dark)
-                .tint(.orange)
+            RootView().environment(store).environment(playback).environment(router)
+                .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil).tint(.orange)
         }
     }
 }
-
 @Observable
-final class AppRouter {
-    var showsPlayer = false
-}
+final class AppRouter { var showsPlayer = false }

@@ -1,153 +1,167 @@
 import SwiftUI
 
 struct ItemDetailView: View {
-    @Environment(Library.self) private var library
+    @Environment(ASMRStore.self) private var store
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
-    let item: CatalogItem
-
+    let item: ASMRWork
+    @State private var detail: ASMRWork?
+    @State private var entries: [TrackEntry] = []
+    @State private var error: String?
+    @State private var loading = false
+    @State private var generation = 0
+    @State private var showsPlaylist = false
+    @State private var showsReview = false
+    @State private var section = "files"
+    private var work: ASMRWork { detail ?? item }
+    private var audios: [TrackEntry] { entries.filter { $0.node.type == "audio" } }
+    private var folders: [String] { entries.reduce(into:[]) { if !$0.contains($1.path) { $0.append($1.path) } } }
     var body: some View {
-        let firstPlayable = library.firstPlayable(in: item)
-        ScrollView {
-            VStack(spacing: 18) {
-                ArtworkView(style: item.artwork, cornerRadius: 28)
-                    .frame(width: 240, height: 240)
-                    .shadow(color: item.artwork.background.opacity(0.5), radius: 30, y: 16)
-                    .padding(.top, 8)
-
-                VStack(spacing: 4) {
-                    Text(item.title)
-                        .font(.title2.bold())
-                    if let creator = item.creator {
-                        Text(creator)
-                            .font(.body)
-                            .foregroundStyle(.tint)
-                    }
-                    Text(metaLine)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                .multilineTextAlignment(.center)
-
-                Button {
-                    guard let firstPlayable else { return }
-                    play(firstPlayable)
-                } label: {
-                    Label("播放", systemImage: "play.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-                .disabled(firstPlayable == nil)
-
-                if firstPlayable == nil, let reason = denialMessage {
-                    Label(reason, systemImage: "lock.fill")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                if !item.summary.isEmpty {
-                    Text(item.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                VStack(spacing: 0) {
-                    ForEach(Array(item.tracks.enumerated()), id: \.element.id) { index, track in
-                        if index > 0 { Divider().padding(.leading, 48) }
-                        TrackRow(index: index + 1, track: track, item: item) { play(track) }
-                    }
-                }
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        List {
+            Section {
+                VStack(spacing:12) {
+                    WorkArtwork(work:work,radius:20).frame(width:180,height:180)
+                    Text(work.title).font(.title2.bold()).multilineTextAlignment(.center)
+                    Text([work.sourceID,work.release,work.creator].compactMap { $0 }.joined(separator:" · "))
+                        .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    if let rating = work.rate_average_2dp { Label(String(format:"%.2f",rating),systemImage:"star.fill").font(.subheadline) }
+                    HStack {
+                        Button { if let first = audios.first { play(first) } } label: {
+                            Label("播放",systemImage:"play.fill").frame(maxWidth:.infinity)
+                        }.buttonStyle(.borderedProminent).disabled(audios.isEmpty)
+                        Button { showsPlaylist = true } label: {
+                            Label("加入列表",systemImage:"text.badge.plus").frame(maxWidth:.infinity)
+                        }.buttonStyle(.bordered)
+                    }.controlSize(.large)
+                }.frame(maxWidth:.infinity).padding(.vertical,12)
+            }.listRowBackground(Color.clear)
+            Picker("作品内容",selection:$section) {
+                Text("文件目录").tag("files")
+                Text("作品信息").tag("info")
+            }.pickerStyle(.segmented).listRowBackground(Color.clear).listRowInsets(EdgeInsets(top:0,leading:0,bottom:0,trailing:0))
+            if section == "info" {
+            if let circle = work.circle {
+                Section("社团") { NavigationLink(circle.name) { WorkBrowser(title:circle.name,keyword:"$circle:\(circle.name)$") } }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            if let vas = work.vas, !vas.isEmpty {
+                Section("声优") { ForEach(vas) { person in NavigationLink(person.name) { WorkBrowser(title:person.name,keyword:"$va:\(person.name)$") } } }
+            }
+            if let tags = work.tags, !tags.isEmpty {
+                Section("标签") {
+                    ScrollView(.horizontal,showsIndicators:false) {
+                        HStack { ForEach(tags) { tag in NavigationLink { WorkBrowser(title:tag.name,keyword:"$tag:\(tag.name)$") } label: { Text(tag.name).font(.caption).padding(8).background(.quaternary,in:Capsule()) } } }
+                    }
+                }
+            }
+            Section("我的收听记录") {
+                Button { showsReview = true } label: { Label("评分、笔记与收听状态",systemImage:"star.bubble") }
+            }
+            }
+            if section == "files" {
+            if loading && entries.isEmpty { Section("文件目录") { ForEach(0..<4,id:\.self) { _ in Text("正在载入音轨目录…").redacted(reason:.placeholder) } } }
+            if let error { RetryRow(message:error) { Task { await load() } } }
+            ForEach(folders,id:\.self) { folder in
+                Section(folder.isEmpty ? "文件" : folder) {
+                    ForEach(entries.filter { $0.path == folder }) { entry in
+                        if entry.node.type == "audio" {
+                            Button { play(entry) } label: {
+                                HStack {
+                                    Image(systemName:playback.current?.id == entry.id ? "waveform" : "play.circle")
+                                    Text(entry.title).foregroundStyle(.primary)
+                                    Spacer()
+                                    Text(entry.duration.map(DurationFormat.clock) ?? "--:--").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                }
+                            }.disabled(entry.node.stream(preferSmall:store.preferSmall) == nil)
+                            .contextMenu { Button("加入播放队列") { playback.enqueue(entry,in:work) } }
+                        } else if [".vtt",".srt",".lrc"].contains(where:{ entry.title.lowercased().hasSuffix($0) }) {
+                            Button { playback.loadSubtitle(entry) } label: { Label(entry.title,systemImage:"captions.bubble") }
+                                .disabled(playback.current?.item.id != work.id)
+                        } else if let url = entry.node.mediaStreamUrl {
+                            Link(destination:url) { Label(entry.title,systemImage:entry.node.type == "image" ? "photo":"doc.text") }
+                        } else { Label(entry.title,systemImage:"doc").foregroundStyle(.secondary) }
+                    }
+                }
+            }
+            if !loading && entries.isEmpty && error == nil { ContentUnavailableView("暂无音轨",systemImage:"waveform") }
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    library.toggleFavorite(item)
-                } label: {
-                    Image(systemName: library.isFavorite(item) ? "heart.fill" : "heart")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .accessibilityLabel(library.isFavorite(item) ? "取消收藏" : "收藏")
+            ToolbarItemGroup(placement:.topBarTrailing) {
+                Button { showsReview = true } label: { Image(systemName:work.progress == nil ? "heart":"heart.fill") }.accessibilityLabel(work.progress == nil ? "收藏到网站":"管理网站收藏")
+                Menu {
+                    Button("加入网站播放列表") { showsPlaylist = true }
+                    Button("评分与收听状态") { showsReview = true }
+                    ShareLink(item:URL(string:"https://asmr.one/work/\(work.sourceID)")!)
+                } label: { Image(systemName:"ellipsis") }
             }
         }
+        .sheet(isPresented:$showsPlaylist) { NavigationStack { AddToPlaylistView(work:work) } }
+        .sheet(isPresented:$showsReview,onDismiss:{ Task { await load() } }) { ReviewEditor(work:work) }
+        .task(id:"\(store.sessionRevision)|\(store.loggedIn)") { await load() }
+        .refreshable { await load() }
     }
-
-    private var metaLine: String {
-        "\(item.category.label) · \(item.tracks.count) 条音轨 · 共 \(DurationFormat.label(item.totalDuration))"
+    private func load() async {
+        generation += 1; let ticket = generation
+        loading = true; error = nil
+        defer { if generation == ticket { loading = false } }
+        do {
+            async let metadata = store.client.work(item.id)
+            async let nodes = store.client.tracks(item.id)
+            let (work,tree) = try await (metadata,nodes)
+            try Task.checkCancellation()
+            guard generation == ticket else { return }
+            detail = work; entries = TrackEntry.flatten(tree,workID:item.id)
+        } catch { if generation == ticket, !(error is CancellationError), (error as? URLError)?.code != .cancelled { self.error = error.localizedDescription } }
     }
-
-    private var denialMessage: String? {
-        guard let track = item.tracks.first, case .failure(let denial) = library.evaluate(track, in: item) else { return nil }
-        return denial.userMessage
-    }
-
-    private func play(_ track: Track) {
-        playback.play(track, in: item)
-        router.showsPlayer = true
-    }
+    private func play(_ track: TrackEntry) { playback.play(track,in:work,tracks:audios); router.showsPlayer = true }
 }
 
-struct TrackRow: View {
-    @Environment(Library.self) private var library
-    @Environment(PlaybackCoordinator.self) private var playback
-    let index: Int
-    let track: Track
-    let item: CatalogItem
-    let action: () -> Void
-
+struct ReviewEditor: View {
+    @Environment(ASMRStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let work: ASMRWork
+    @State private var rating = 0
+    @State private var progress = "marked"
+    @State private var text = ""
+    @State private var busy = false
+    @State private var ready = false
+    @State private var error: String?
     var body: some View {
-        let result = library.evaluate(track, in: item)
-        let playable = (try? result.get()) != nil
-        let isCurrent = playback.current?.track.id == track.id
-
-        Button(action: action) {
-            HStack(spacing: 14) {
-                Group {
-                    if isCurrent {
-                        Image(systemName: "waveform")
-                            .symbolEffect(.variableColor.iterative, isActive: playback.isPlaying)
-                            .foregroundStyle(.tint)
-                    } else {
-                        Text("\(index)")
-                            .foregroundStyle(.secondary)
-                    }
+        NavigationStack {
+            Form {
+                if !store.loggedIn { NavigationLink("登录 ASMR.ONE 后保存记录") { AccountView() } }
+                Picker("评分",selection:$rating) { Text("未评分").tag(0); ForEach(1...5,id:\.self) { Text("\($0) 星").tag($0) } }
+                Picker("收听状态",selection:$progress) {
+                    Text("想听").tag("marked"); Text("正在听").tag("listening"); Text("已听完").tag("listened"); Text("重听").tag("replay"); Text("搁置").tag("postponed")
                 }
-                .font(.subheadline)
-                .frame(width: 18)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(track.title)
-                        .font(.body)
-                        .foregroundStyle(playable ? .primary : .secondary)
-                    if case .failure(let denial) = result {
-                        Label(denial.userMessage, systemImage: "lock.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .labelStyle(.titleAndIcon)
-                    } else if !track.subtitles.isEmpty {
-                        Text("中文字幕")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 0)
-                Text(track.duration.map(DurationFormat.clock) ?? "--:--")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                TextField("笔记 / 评价",text:$text,axis:.vertical).lineLimit(4...10)
+                if let error { Text(error).foregroundStyle(.red) }
+            }.navigationTitle("网站收听记录").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement:.cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement:.confirmationAction) { Button(busy ? "保存中…":"保存") { Task { await save() } }.disabled(busy || !store.loggedIn || !ready) }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
+        }.task(id:"\(store.sessionRevision)|\(store.loggedIn)") {
+            ready = false
+            guard store.loggedIn else { return }
+            do {
+                let latest = try await store.client.work(work.id)
+                try Task.checkCancellation()
+                rating = latest.userRating ?? 0
+                progress = latest.progress ?? "marked"
+                text = latest.review_text ?? ""
+                error = nil; ready = true
+            } catch {
+                if !(error is CancellationError) { self.error = error.localizedDescription }
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!playable)
-        .accessibilityHint(playable ? "" : "暂时不能播放")
+    }
+    private func save() async {
+        busy = true; defer { busy = false }
+        do {
+            try await store.saveReview(workID:work.id,rating:rating,text:text,progress:progress)
+            dismiss()
+        } catch { self.error = error.localizedDescription }
     }
 }

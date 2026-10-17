@@ -29,11 +29,6 @@ struct PlaybackSupportTests {
         #expect(WebVTT.parse(Data("<html>login</html>".utf8)).isEmpty)
     }
 
-    @Test func bundledSubtitleParses() throws {
-        let url = try #require(Bundle.main.url(forResource: "rain", withExtension: "vtt"))
-        #expect(WebVTT.parse(try Data(contentsOf: url)).count >= 5)
-    }
-
     @Test func sleepFadeVolume() {
         #expect(SleepFade.volume(remaining: 120, fadeEnabled: true) == 1)
         #expect(SleepFade.volume(remaining: 15, fadeEnabled: true) == 0.5)

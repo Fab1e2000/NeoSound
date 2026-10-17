@@ -1,58 +1,71 @@
 import SwiftUI
 
-enum AppTab: Hashable {
-    case home, favorites, library, search
-}
-
 struct RootView: View {
-    @Environment(Library.self) private var library
+    @Environment(ASMRStore.self) private var store
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
     @Environment(\.scenePhase) private var scenePhase
-    @State private var tab: AppTab = .home
-
     var body: some View {
         @Bindable var router = router
-        TabView(selection: $tab) {
-            Tab("首页", systemImage: "house", value: AppTab.home) {
-                NavigationStack { HomeView().itemDestinations() }
-            }
-            Tab("收藏", systemImage: "heart", value: AppTab.favorites) {
-                NavigationStack { FavoritesView().itemDestinations() }
-            }
-            Tab("资料库", systemImage: "square.stack", value: AppTab.library) {
-                NavigationStack { LibraryView().itemDestinations() }
-            }
-            Tab(value: AppTab.search, role: .search) {
-                NavigationStack { SearchView().itemDestinations() }
+        @Bindable var store = store
+        AppSection { BrowseView() }
+        .safeAreaInset(edge:.bottom,spacing:0) {
+            if playback.current != nil {
+                MiniPlayer()
+                    .frame(minHeight:56)
+                    .background(.regularMaterial,in:.rect(cornerRadius:18))
+                    .padding(.horizontal,12)
+                    .padding(.vertical,8)
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory(isEnabled: playback.current != nil) {
-            MiniPlayer()
+        .sheet(isPresented:$router.showsPlayer) { PlayerView().preferredColorScheme(.dark) }
+        .task(id:scenePhase) {
+            if scenePhase == .active { await store.refreshSession() }
         }
-        .sheet(isPresented: $router.showsPlayer) {
-            PlayerView()
-        }
-        .onChange(of: library.allowlistRevision) {
-            playback.revalidate()
-        }
-        .onChange(of: scenePhase) {
-            if scenePhase == .active { playback.updateSleepTimer() }
-        }
-        .alert("播放已停止", isPresented: Binding(
-            get: { playback.notice != nil },
-            set: { if !$0 { playback.notice = nil } }
-        )) {
-            Button("好", role: .cancel) {}
-        } message: {
-            Text(playback.notice ?? "")
-        }
+        .onChange(of:store.sessionRevision) { playback.stop() }
+        .onChange(of:scenePhase) { if scenePhase == .active { playback.updateSleepTimer() } }
+        .alert("提示", isPresented:Binding(get:{ store.message != nil || playback.notice != nil },set:{ if !$0 { store.message = nil; playback.notice = nil } })) {
+            Button("好") { store.message = nil; playback.notice = nil }
+        } message: { Text(store.message ?? playback.notice ?? "") }
     }
 }
-
 extension View {
-    func itemDestinations() -> some View {
-        navigationDestination(for: CatalogItem.self) { ItemDetailView(item: $0) }
+    func workDestinations() -> some View { navigationDestination(for:ASMRWork.self) { ItemDetailView(item:$0) } }
+}
+
+private enum AppSheet: String, Identifiable {
+    case account, settings
+    var id: String { rawValue }
+}
+
+/// Main navigation and account/settings actions.
+private struct AppSection<Content: View>: View {
+    @Environment(ASMRStore.self) private var store
+    @State private var sheet: AppSheet?
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        NavigationStack {
+            content()
+                .workDestinations()
+                .toolbar {
+                    ToolbarItemGroup(placement:.topBarTrailing) {
+                        Button { sheet = .account } label: { Image(systemName:store.loggedIn ? "person.crop.circle.fill":"person.crop.circle") }
+                            .accessibilityLabel("账号")
+                        Button { sheet = .settings } label: { Image(systemName:"gearshape") }
+                            .accessibilityLabel("设置")
+                    }
+                }
+        }
+        .sheet(item:$sheet) { destination in
+            NavigationStack {
+                Group {
+                    switch destination {
+                    case .account: AccountView()
+                    case .settings: SettingsView()
+                    }
+                }
+                .toolbar { ToolbarItem(placement:.confirmationAction) { Button("完成") { sheet = nil } } }
+            }
+        }
     }
 }
