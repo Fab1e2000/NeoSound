@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("translatesTitles") private var translatesTitles = true
+    @AppStorage("showsSourceID") private var showsSourceID = false
     @Environment(ASMRStore.self) private var store
     @Environment(PlaybackCoordinator.self) private var playback
     var body: some View {
@@ -18,6 +20,11 @@ struct SettingsView: View {
                     Text("浅色").tag("light")
                     Text("深色").tag("dark")
                 }
+            }
+            Section("浏览") {
+                Toggle("标题翻译成中文",isOn:$translatesTitles)
+                Toggle("卡片显示 RJ 号",isOn:$showsSourceID)
+                Text("日语标题使用 Apple 设备端翻译模型，首次使用需下载日语→中文语言包。") .font(.footnote).foregroundStyle(.secondary)
             }
             Section("播放") {
                 Toggle("优先流畅音质",isOn:$store.preferSmall)

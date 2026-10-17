@@ -1,9 +1,11 @@
 import SwiftUI
+import Translation
 
 struct RootView: View {
     @Environment(ASMRStore.self) private var store
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
+    @Environment(TitleTranslator.self) private var translator
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         @Bindable var router = router
@@ -19,6 +21,7 @@ struct RootView: View {
             }
         }
         .sheet(isPresented:$router.showsPlayer) { PlayerView().preferredColorScheme(.dark) }
+        .translationTask(translator.configuration) { await translator.run($0) }
         .task(id:scenePhase) {
             if scenePhase == .active { await store.refreshSession() }
         }

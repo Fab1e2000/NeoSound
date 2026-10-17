@@ -18,6 +18,7 @@
 		5F5EEED80C95C060A1394196 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9BE6F446C1CA3D70476725 /* PlayerView.swift */; };
 		777A18907A46458D1D7BD58C /* PlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B3CCDF178746963EF38AC8 /* PlaybackCoordinator.swift */; };
 		77F2F817BBFC05BE5EF08AC3 /* MiniPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D038EE1C2D276C2954243D7 /* MiniPlayer.swift */; };
+		7E093B9D70DACC026365A8D5 /* TitleTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BA260FFB7C5F39F0E31FB3E /* TitleTranslator.swift */; };
 		811FA410B06AA39F94F1A5ED /* AddToPlaylistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13857B823C58D049C75DB8CD /* AddToPlaylistView.swift */; };
 		823D14E0D7CCD4BFC16C8BCC /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8B5FF9E6CBEF8622CADE9B /* SettingsView.swift */; };
 		875C8C34BA645A5BF2C05766 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EA2795EDA7DD2EF4A6FC50 /* ArtworkView.swift */; };
@@ -53,6 +54,7 @@
 		5EDE022091C8CBFAC1758C28 /* NeoSound.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NeoSound.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B8B5FF9E6CBEF8622CADE9B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		6D1C37E5A9C2E4517575C336 /* NeoSoundApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeoSoundApp.swift; sourceTree = "<group>"; };
+		7BA260FFB7C5F39F0E31FB3E /* TitleTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleTranslator.swift; sourceTree = "<group>"; };
 		7DDF884FD76857A2FBF096FE /* WorkBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkBrowser.swift; sourceTree = "<group>"; };
 		8D038EE1C2D276C2954243D7 /* MiniPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniPlayer.swift; sourceTree = "<group>"; };
 		930CD50E138262E50B93DF31 /* ASMRTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASMRTests.swift; sourceTree = "<group>"; };
@@ -101,6 +103,7 @@
 				A1ACC8F2607B1EECDE2505E6 /* ASMRClient.swift */,
 				F4141CAD12774FF60E4D16F8 /* ASMRStore.swift */,
 				97B3CCDF178746963EF38AC8 /* PlaybackCoordinator.swift */,
+				7BA260FFB7C5F39F0E31FB3E /* TitleTranslator.swift */,
 				4E4327ECA4A9B27DB9556C9F /* WebVTT.swift */,
 			);
 			path = Services;
@@ -283,6 +286,7 @@
 				315792755C9CCE0624A45584 /* RootView.swift in Sources */,
 				823D14E0D7CCD4BFC16C8BCC /* SettingsView.swift in Sources */,
 				DC38391972CF535FAA0C7C81 /* SleepTimerSheet.swift in Sources */,
+				7E093B9D70DACC026365A8D5 /* TitleTranslator.swift in Sources */,
 				C174DDC129B80354EB2A0B6B /* WebVTT.swift in Sources */,
 				4346CD573A9A7F7CC410B000 /* WorkBrowser.swift in Sources */,
 			);

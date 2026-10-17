@@ -5,6 +5,7 @@ struct NeoSoundApp: App {
     @State private var store: ASMRStore
     @State private var playback: PlaybackCoordinator
     @State private var router = AppRouter()
+    @State private var translator = TitleTranslator()
     @AppStorage("appearance") private var appearance = "system"
     init() {
         let store = ASMRStore()
@@ -13,7 +14,7 @@ struct NeoSoundApp: App {
     }
     var body: some Scene {
         WindowGroup {
-            RootView().environment(store).environment(playback).environment(router)
+            RootView().environment(store).environment(playback).environment(router).environment(translator)
                 .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil).tint(.orange)
         }
     }

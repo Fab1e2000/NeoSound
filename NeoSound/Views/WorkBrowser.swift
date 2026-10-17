@@ -14,19 +14,11 @@ struct WorkBrowser: View {
     var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:16) {
-                HStack {
-                    Text(feed.total > 0 ? "\(feed.total) 部作品" : "作品").foregroundStyle(.secondary)
-                    Spacer()
-                    Menu {
-                        Picker("排序",selection:$sort) { ForEach(WorkSort.allCases) { Text($0.title).tag($0) } }
-                        Toggle("升序",isOn:$ascending)
-                        Toggle("含字幕",isOn:$subtitle)
-                    } label: { Label(sort.title,systemImage:subtitle ? "line.3.horizontal.decrease.circle.fill":"line.3.horizontal.decrease") }
-                }.font(.subheadline)
+                SortBar(sort:$sort,ascending:$ascending,subtitle:$subtitle)
                 WorkGrid(works:feed.works,loading:feed.loading)
                 if feed.loading && !feed.works.isEmpty { ProgressView().frame(maxWidth:.infinity) }
                 if let error = feed.error { RetryRow(message:error) { Task { await load(reset:feed.page == 0) } } }
-                if !feed.loading && feed.works.isEmpty && feed.error == nil { ContentUnavailableView("暂无作品",systemImage:"waveform",description:Text("试试其他关键词。")) }
+                if !feed.loading && feed.works.isEmpty && feed.error == nil { ContentUnavailableView("暂无作品",systemImage:"waveform",description:Text("试试其他筛选条件。")) }
                 if feed.hasNext && feed.error == nil {
                     Color.clear.frame(height:1)
                         .onScrollVisibilityChange(threshold:0.1) { paginationVisible = $0 }
@@ -55,6 +47,44 @@ struct WorkBrowser: View {
         await feed.load(reset:reset,automatically:automatically) { page in
             try await client.works(keyword:keyword,page:page,sort:sort,ascending:ascending,subtitle:subtitle,seed:seed)
         }
+    }
+}
+/// Horizontal sort and filter picker above the grid.
+private struct SortBar: View {
+    @Binding var sort: WorkSort
+    @Binding var ascending: Bool
+    @Binding var subtitle: Bool
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing:8) {
+                ForEach(WorkSort.allCases) { option in
+                    chip(option.title,selected:sort == option) { sort = option }
+                }
+                Divider().frame(height:20)
+                if sort != .random {
+                    chip(ascending ? "升序":"降序",systemImage:ascending ? "arrow.up":"arrow.down",selected:false) { ascending.toggle() }
+                        .accessibilityHint("切换排序方向")
+                }
+                chip("含字幕",systemImage:"captions.bubble",selected:subtitle) { subtitle.toggle() }
+            }
+        }
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+    }
+    private func chip(_ title: String, systemImage: String? = nil, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action:action) {
+            HStack(spacing:4) {
+                if let systemImage { Image(systemName:systemImage) }
+                Text(title)
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal,14).padding(.vertical,7)
+            .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .background(selected ? AnyShapeStyle(.tint) : AnyShapeStyle(.fill.tertiary),in:.capsule)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 struct WorkGrid: View {
@@ -94,14 +124,19 @@ struct WorkArtwork: View {
 }
 struct ItemCard: View {
     let item: ASMRWork
+    @Environment(TitleTranslator.self) private var translator
+    @AppStorage("translatesTitles") private var translatesTitles = true
+    @AppStorage("showsSourceID") private var showsSourceID = false
     var body: some View {
         VStack(alignment:.leading,spacing:0) {
             NavigationLink(value:item) {
                 WorkArtwork(work:item,radius:0,aspectRatio:4.0/3)
                     .fixedSize(horizontal:false,vertical:true)
                     .overlay(alignment:.topLeading) {
-                        Text(item.sourceID).font(.caption2.weight(.medium)).padding(.horizontal,5).padding(.vertical,3)
-                            .foregroundStyle(.white).background(.black.opacity(0.65),in:.rect(cornerRadius:4)).padding(5)
+                        if showsSourceID {
+                            Text(item.sourceID).font(.caption2.weight(.medium)).padding(.horizontal,5).padding(.vertical,3)
+                                .foregroundStyle(.white).background(.black.opacity(0.65),in:.rect(cornerRadius:4)).padding(5)
+                        }
                     }
                     .overlay(alignment:.bottomTrailing) {
                         if let release = item.release {
@@ -112,7 +147,7 @@ struct ItemCard: View {
             Divider()
             VStack(alignment:.leading,spacing:6) {
                 NavigationLink(value:item) {
-                    Text(item.title).font(.subheadline.weight(.medium)).lineLimit(3,reservesSpace:true)
+                    Text(translator.display(item.title,translated:translatesTitles)).font(.subheadline.weight(.medium)).lineLimit(3,reservesSpace:true)
                         .frame(maxWidth:.infinity,alignment:.leading).foregroundStyle(.primary)
                 }.buttonStyle(.plain)
                 WorkChipLayout(spacing:4) {
@@ -131,6 +166,7 @@ struct ItemCard: View {
         }
         .fixedSize(horizontal:false,vertical:true)
         .background(Color(.secondarySystemGroupedBackground),in:.rect(cornerRadius:12))
+        .task(id:translatesTitles) { if translatesTitles { translator.request(item.title) } }
         .clipShape(.rect(cornerRadius:12))
     }
     private func chip(_ title: String, namespace: String, color: Color) -> some View {
@@ -166,18 +202,6 @@ private struct WorkChipLayout: Layout {
             x += itemWidth + spacing; rowHeight = max(rowHeight,size.height)
         }
         return (CGSize(width:width,height:y + rowHeight),points,widths)
-    }
-}
-struct ItemRow: View {
-    let item: ASMRWork
-    var body: some View {
-        HStack(spacing:12) {
-            WorkArtwork(work:item,radius:10).frame(width:58,height:58)
-            VStack(alignment:.leading,spacing:4) {
-                Text(item.title).lineLimit(2)
-                Text(item.creator ?? item.sourceID).font(.caption).foregroundStyle(.secondary)
-            }
-        }
     }
 }
 struct RetryRow: View {

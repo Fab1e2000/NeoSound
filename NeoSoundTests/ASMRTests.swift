@@ -4,6 +4,13 @@ import Testing
 
 @Suite("ASMR 协议与状态", .serialized)
 @MainActor struct ASMRTests {
+    @Test func workTitleDropsBracketBlocksAndDetectsJapanese() {
+        #expect(WorkTitle.cleaned("【耳かき】癒やしの時間【バイノーラル】") == "癒やしの時間")
+        #expect(WorkTitle.cleaned("前 【特典】 後") == "前 後")
+        #expect(WorkTitle.cleaned("【只有括号】") == "【只有括号】")
+        #expect(WorkTitle.isJapanese("ゆっくりおやすみなさい、お兄ちゃん"))
+        #expect(!WorkTitle.isJapanese("在雨声中慢慢入睡吧"))
+    }
     @Test func searchEscapesSinglePathSegment() throws {
         let keyword = "耳かき / + % ? #"
         let path = "/api/search/" + ASMRClient.encodeSegment(keyword)
