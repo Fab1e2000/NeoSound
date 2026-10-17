@@ -14,13 +14,41 @@ nonisolated struct ASMRWork: Codable, Identifiable, Hashable, Sendable {
     var rate_average_2dp: Double?
     var mainCoverUrl: URL?
     var thumbnailCoverUrl: URL?
-    var progress: String?
-    var review_text: String?
-    var userRating: Int?
+    var rate_count: Int?
+    var dl_count: Int?
+    var age_category_string: String?
+    var source_url: String?
+    var language_editions: [LanguageEdition]?
+    var rate_count_detail: [RatingBucket]?
     var sourceID: String { source_id ?? String(format: "RJ%08d", id) }
     var creator: String? { circle?.name ?? name }
-    var artwork: ArtworkStyle { .unknown }
     var coverURL: URL? { mainCoverUrl ?? thumbnailCoverUrl }
+}
+
+/// Optional site metadata decodes leniently so an odd field never drops the whole work.
+nonisolated struct LanguageEdition: Codable, Hashable, Sendable {
+    var lang: String?
+    var label: String?
+    var workno: String?
+    enum CodingKeys: String, CodingKey { case lang, label, workno }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        lang = try? c.decode(String.self, forKey: .lang)
+        label = try? c.decode(String.self, forKey: .label)
+        workno = try? c.decode(String.self, forKey: .workno)
+    }
+}
+nonisolated struct RatingBucket: Codable, Hashable, Sendable {
+    var review_point: Int?
+    var count: Int?
+    var ratio: Int?
+    enum CodingKeys: String, CodingKey { case review_point, count, ratio }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        review_point = try? c.decode(Int.self, forKey: .review_point)
+        count = try? c.decode(Int.self, forKey: .count)
+        ratio = try? c.decode(Int.self, forKey: .ratio)
+    }
 }
 
 nonisolated struct ASMRFacet: Codable, Identifiable, Hashable, Sendable {
@@ -64,9 +92,8 @@ nonisolated struct ASMRNode: Decodable, Hashable, Sendable {
         duration = try c.decodeIfPresent(Double.self, forKey: .duration)
         size = try c.decodeIfPresent(Int64.self, forKey: .size)
     }
-    func stream(preferSmall: Bool) -> URL? {
-        preferSmall ? (streamLowQualityUrl ?? mediaStreamUrl) : (mediaStreamUrl ?? streamLowQualityUrl)
-    }
+    /// The file's own stream; the low-quality copy is used only when the site offers no original stream.
+    var streamURL: URL? { mediaStreamUrl ?? streamLowQualityUrl }
 }
 
 /// IDs are scoped by work and directory position; folder titles are not globally unique.
@@ -108,15 +135,6 @@ nonisolated struct ASMRUser: Codable, Sendable {
 nonisolated struct AuthResponse: Decodable, Sendable {
     let user: ASMRUser
     let token: String?
-}
-nonisolated struct ASMRPlaylist: Decodable, Identifiable, Hashable, Sendable {
-    let id: String
-    let name: String
-    enum CodingKeys: String, CodingKey { case id, name }
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decodeFlexibleID(forKey: .id); name = try c.decode(String.self, forKey: .name)
-    }
 }
 extension KeyedDecodingContainer {
     nonisolated func decodeFlexibleID(forKey key: Key) throws -> String {

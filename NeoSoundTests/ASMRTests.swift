@@ -12,6 +12,45 @@ import Testing
         #expect(WorkTitle.isJapanese("ゆっくりおやすみなさい、お兄ちゃん"))
         #expect(!WorkTitle.isJapanese("在雨声中慢慢入睡吧"))
     }
+    @Test func localPlaylistsPersistAndToggleWorks() throws {
+        let file = FileManager.default.temporaryDirectory.appending(path:"playlists-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at:file) }
+        let store = LocalPlaylistStore(fileURL:file)
+        let list = store.create(name:"  睡前  ")
+        let a = ASMRWork(id:1,title:"a"), b = ASMRWork(id:2,title:"b")
+        store.toggle(a,in:list.id); store.toggle(b,in:list.id)
+        store.move(from:IndexSet(integer:1),to:0,in:list.id)
+        store.rename(list.id,to:"助眠")
+        let reloaded = LocalPlaylistStore(fileURL:file)
+        #expect(reloaded.playlists.map(\.name) == ["助眠"])
+        #expect(reloaded.playlists.first?.works.map(\.id) == [2,1])
+        reloaded.toggle(a,in:list.id)
+        #expect(!reloaded.contains(a,in:list.id) && reloaded.contains(b,in:list.id))
+        reloaded.delete(list.id)
+        #expect(LocalPlaylistStore(fileURL:file).playlists.isEmpty)
+    }
+    @Test func workContentsGroupsVersionsAndExtras() throws {
+        func audio(_ t: String) -> String { #"{"type":"audio","title":"\#(t)","mediaStreamUrl":"https://example.com/\#(t.count)","duration":60}"# }
+        let json = """
+        [{"type":"folder","title":"02.mp3","children":[{"type":"folder","title":"mp3SEなし","children":[\(audio("01_プロローグ（SEなし）.mp3"))]},\(audio("00_タイトルコール.mp3")),\(audio("01_プロローグ.mp3")),\(audio("ex01寝息ループ.mp3"))]},
+         {"type":"folder","title":"01.wav","children":[\(audio("01_プロローグ.wav"))]},
+         {"type":"folder","title":"03.特典","children":[{"type":"folder","title":"台本","children":[{"type":"text","title":"01_プロローグ.txt"}]},{"type":"folder","title":"イラスト","children":[{"type":"image","title":"01.png"}]},{"type":"folder","title":"特典ボイス","children":[\(audio("ex02.フリートーク.mp3"))]}]},
+         {"type":"text","title":"readme.txt"}]
+        """
+        let nodes = try JSONDecoder().decode([ASMRNode].self,from:Data(json.utf8))
+        let contents = WorkContents(TrackEntry.flatten(nodes,workID:1))
+        #expect(contents.formats == ["MP3","WAV"] && contents.hasSEChoice)
+        #expect(contents.defaultVersion == TrackVersion(format:"MP3",withSE:true))
+        #expect(contents.tracks(for:contents.defaultVersion).map(\.title) == ["00_タイトルコール.mp3","01_プロローグ.mp3","ex01寝息ループ.mp3"])
+        #expect(contents.resolve(format:"WAV",withSE:false) == TrackVersion(format:"WAV",withSE:true))
+        #expect(contents.scripts.count == 2 && contents.images.count == 1 && contents.bonusAudio.count == 1)
+    }
+    @Test func trackDisplayNamesDropNumbersAndVersionMarkers() {
+        #expect(WorkContents.display("05_お清め耳かき（左）　（SEなし）.mp3") == ("5","お清め耳かき（左）"))
+        #expect(WorkContents.display("トラック3_うさギャルちゃんと夜のお散歩_MP3_SEあり.mp3") == ("3","うさギャルちゃんと夜のお散歩"))
+        #expect(WorkContents.display("ex01寝息ループ.wav") == ("EX","寝息ループ"))
+        #expect(WorkContents.display("Extra Talk.mp3") == (nil,"Extra Talk"))
+    }
     @Test func contentFilterHidesAdultWorksAndPausesOnFilteredPages() async {
         var adult = ASMRWork(id:1,title:"a"); adult.nsfw = true
         var flagged = ASMRWork(id:2,title:"b"); flagged.nsfw = true
@@ -60,7 +99,7 @@ import Testing
         let nodes = try JSONDecoder().decode([ASMRNode].self,from:Data(json.utf8))
         let flat = TrackEntry.flatten(nodes,workID:1)
         #expect(flat.count == 2 && flat[0].id != flat[1].id)
-        #expect(flat[0].node.stream(preferSmall:true)?.host == "example.com")
+        #expect(flat[0].node.streamURL?.host == "example.com")
         #expect(flat[0].duration == nil)
         #expect(flat[1].node.mediaStreamUrl == nil)
         #expect(flat.map(\.id) == TrackEntry.flatten(nodes,workID:1).map(\.id))

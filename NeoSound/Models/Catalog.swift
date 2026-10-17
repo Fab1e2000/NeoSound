@@ -1,14 +1,5 @@
 import Foundation
 
-nonisolated enum ArtworkStyle: String, Decodable, Sendable {
-    case rain, waves, forest, fire, noise, breath, storm, unknown
-
-    init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self)
-        self = ArtworkStyle(rawValue: raw) ?? .unknown
-    }
-}
-
 nonisolated enum DurationFormat {
     /// 12:04 / 1:02:03
     static func clock(_ seconds: TimeInterval) -> String {

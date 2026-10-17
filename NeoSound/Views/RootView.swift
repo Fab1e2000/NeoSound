@@ -5,20 +5,32 @@ struct RootView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
     @Environment(\.scenePhase) private var scenePhase
+    @Namespace private var playerTransition
     var body: some View {
         @Bindable var router = router
-        @Bindable var store = store
-        AppSection { BrowseView() }
-        .safeAreaInset(edge:.bottom,spacing:0) {
-            if playback.current != nil {
-                MiniPlayer()
-                    .frame(minHeight:56)
-                    .background(.regularMaterial,in:.rect(cornerRadius:18))
-                    .padding(.horizontal,12)
-                    .padding(.vertical,8)
+        TabView {
+            Tab("浏览",systemImage:"square.grid.2x2") {
+                NavigationStack { BrowseView().workDestinations() }
+            }
+            Tab("列表",systemImage:"music.note.list") {
+                NavigationStack { PlaylistsView().workDestinations() }
+            }
+            Tab("设置",systemImage:"gearshape") {
+                NavigationStack { SettingsView() }
             }
         }
-        .sheet(isPresented:$router.showsPlayer) { PlayerView().preferredColorScheme(.dark) }
+        // As in NeoDizzy: the tab bar minimizes on scroll and the mini player folds inline beside it.
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory(isEnabled:playback.current != nil) {
+            MiniPlayerView(transitionNamespace:playerTransition) { router.showsPlayer = true }
+        }
+        // The player zooms out of the mini player's artwork and is dismissed by dragging down.
+        .fullScreenCover(isPresented:$router.showsPlayer) {
+            NowPlayingView()
+                .presentationBackground(.clear)
+                .presentationContentInteraction(.resizes)
+                .navigationTransition(.zoom(sourceID:NowPlayingView.transitionID,in:playerTransition))
+        }
         .task(id:scenePhase) {
             if scenePhase == .active { await store.refreshSession() }
         }
@@ -42,42 +54,10 @@ extension View {
     func workDestinations() -> some View {
         navigationDestination(for:ASMRWork.self) { ItemDetailView(item:$0) }
             .navigationDestination(for:WorkQuery.self) { WorkBrowser(title:$0.title,keyword:$0.keyword) }
-    }
-}
-
-private enum AppSheet: String, Identifiable {
-    case account, settings
-    var id: String { rawValue }
-}
-
-/// Main navigation and account/settings actions.
-private struct AppSection<Content: View>: View {
-    @Environment(ASMRStore.self) private var store
-    @State private var sheet: AppSheet?
-    @ViewBuilder var content: () -> Content
-    var body: some View {
-        NavigationStack {
-            content()
-                .workDestinations()
-                .toolbar {
-                    ToolbarItemGroup(placement:.topBarTrailing) {
-                        Button { sheet = .account } label: { Image(systemName:store.loggedIn ? "person.crop.circle.fill":"person.crop.circle") }
-                            .accessibilityLabel("账号")
-                        Button { sheet = .settings } label: { Image(systemName:"gearshape") }
-                            .accessibilityLabel("设置")
-                    }
+            .navigationDestination(for:LibraryRoute.self) { route in
+                switch route {
+                case .playlist(let id): LocalPlaylistView(id:id)
                 }
-        }
-        .sheet(item:$sheet) { destination in
-            NavigationStack {
-                Group {
-                    switch destination {
-                    case .account: AccountView()
-                    case .settings: SettingsView()
-                    }
-                }
-                .toolbar { ToolbarItem(placement:.confirmationAction) { Button("完成") { sheet = nil } } }
             }
-        }
     }
 }

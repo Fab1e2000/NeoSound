@@ -41,10 +41,6 @@ struct SettingsView: View {
             } header: { Text("标题翻译") } footer: {
                 Text("日语标题由 DeepSeek（deepseek-flash）翻译，按 API 用量计费；译文缓存在本机，每个标题只翻译一次。Key 只存在本机 Keychain，只发送给 api.deepseek.com。")
             }
-            Section("播放") {
-                Toggle("优先流畅音质",isOn:$store.preferSmall)
-                Text("下次切换音轨时生效；无低清版本时使用原始音频。") .font(.footnote).foregroundStyle(.secondary)
-            }
             Section("API 线路") {
                 Picker("线路",selection:Binding(get:{store.client.baseURL.absoluteString},set:{ host in
                     do { try store.changeHost(host); playback.stop() } catch { store.report(error) }

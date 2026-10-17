@@ -48,7 +48,13 @@ final class PlaybackCoordinator {
 
     private let store: ASMRStore
     private(set) var queue: [PlayingTrack] = []
-    var repeatMode = 0 // 0: stop at end, 1: repeat queue, 2: repeat track
+    var repeatMode: RepeatMode = .off
+    /// Display name for a track (`true`) or work title (`false`); the app replaces it to show translations.
+    @ObservationIgnored var displayName: (String, Bool) -> String = { text, isTrack in isTrack ? text : WorkTitle.cleaned(text) }
+    @ObservationIgnored private var elapsedUpdatedAt = Date()
+    private(set) var isShuffled = false
+    /// Queue order before shuffling, restored when shuffle is turned off.
+    @ObservationIgnored private var unshuffledQueue: [PlayingTrack] = []
     var playbackRate: Float = 1 { didSet { if isPlaying { player.rate = playbackRate }; updateNowPlaying() } }
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var subtitleTask: Task<Void, Never>?
@@ -84,7 +90,8 @@ final class PlaybackCoordinator {
     // MARK: 播放控制
 
     func play(_ track: TrackEntry, in item: ASMRWork, tracks: [TrackEntry]? = nil) {
-        if let tracks { queue = tracks.filter { $0.node.type == "audio" && $0.node.stream(preferSmall: store.preferSmall) != nil }.map { PlayingTrack(item:item, track:$0) } }
+        if tracks != nil { isShuffled = false; unshuffledQueue = [] }
+        if let tracks { queue = tracks.filter { $0.node.type == "audio" && $0.node.streamURL != nil }.map { PlayingTrack(item:item, track:$0) } }
         let selected = PlayingTrack(item:item, track:track)
         if !queue.contains(where: { $0.id == selected.id }) { queue.append(selected) }
         start(selected)
@@ -108,7 +115,7 @@ final class PlaybackCoordinator {
     func next() {
         guard let index = queueIndex, !queue.isEmpty else { return }
         if index + 1 < queue.count { start(queue[index + 1]) }
-        else if repeatMode == 1 { start(queue[0]) }
+        else if repeatMode == .all { start(queue[0]) }
     }
     func previous() {
         guard let index = queueIndex else { return }
@@ -116,9 +123,43 @@ final class PlaybackCoordinator {
         else if index > 0 { start(queue[index - 1]) }
     }
     func selectQueue(_ item: PlayingTrack) { start(item) }
-    func shuffleRemaining() {
+    func toggleShuffle() {
         guard let current else { return }
-        queue = [current] + queue.filter { $0.id != current.id }.shuffled()
+        if isShuffled {
+            queue = unshuffledQueue.filter { item in queue.contains { $0.id == item.id } }
+            unshuffledQueue = []
+        } else {
+            unshuffledQueue = queue
+            queue = [current] + queue.filter { $0.id != current.id }.shuffled()
+        }
+        isShuffled.toggle()
+    }
+    func cycleRepeatMode() { repeatMode = repeatMode.next }
+    /// Playback position between time-observer ticks, for the animated player background.
+    func estimatedProgress(at date: Date = .now) -> TimeInterval {
+        guard phase == .playing else { return elapsed }
+        return elapsed + max(date.timeIntervalSince(elapsedUpdatedAt), 0) * Double(playbackRate)
+    }
+    var canPlayNext: Bool { (queueIndex.map { $0 + 1 < queue.count } ?? false) || (repeatMode == .all && !queue.isEmpty) }
+    var canPlayPrevious: Bool { current != nil }
+    /// Queue positions still to play, in order; wraps around when repeating the whole queue.
+    var upcoming: [UpcomingTrack] {
+        guard let index = queueIndex else { return [] }
+        var positions = Array(queue.indices.dropFirst(index + 1))
+        if repeatMode == .all { positions += queue.indices.prefix(index) }
+        return positions.map { UpcomingTrack(index:$0,track:track(for:queue[$0])) }
+    }
+    func playFromQueue(at index: Int) { if queue.indices.contains(index) { start(queue[index]) } }
+    func moveUpcomingQueueItems(fromOffsets source: IndexSet, toOffset destination: Int) {
+        let positions = upcoming.map(\.index)
+        var items = positions.map { queue[$0] }
+        items.move(fromOffsets:source,toOffset:destination)
+        for (position,item) in zip(positions,items) { queue[position] = item }
+    }
+    /// Loaded subtitle cues as timed lyrics for the Now Playing lyrics page.
+    var subtitleLyrics: LocalLyrics? {
+        guard subtitleName != nil, !cues.isEmpty else { return nil }
+        return LocalLyrics(lines:cues.enumerated().map { LyricLine(id:$0.offset,time:$0.element.start,text:$0.element.text) },plainText:"",source:subtitleName ?? "")
     }
     func retry() { if let current { start(current) } }
     func loadSubtitle(_ entry: TrackEntry) {
@@ -246,7 +287,7 @@ final class PlaybackCoordinator {
 
     private func load(_ selected: PlayingTrack, ticket: Int) async {
         do {
-            guard let url = selected.track.node.stream(preferSmall:store.preferSmall) else { throw ASMRAPIError.invalidResponse }
+            guard let url = selected.track.node.streamURL else { throw ASMRAPIError.invalidResponse }
             phase = .preparing
             let asset = AVURLAsset(url:url)
             let playable = try await asset.load(.isPlayable)
@@ -288,7 +329,7 @@ final class PlaybackCoordinator {
         phase = .ended
         if let duration { elapsed = duration }
         if sleepMode == .endOfTrack || stopAtEnd { pause(); setSleepTimer(.off); phase = .ended; updateNowPlaying(); return }
-        if repeatMode == 2 { seek(to:0); resume(); return }
+        if repeatMode == .one { seek(to:0); resume(); return }
         next(); updateNowPlaying()
     }
 
@@ -317,6 +358,7 @@ final class PlaybackCoordinator {
     }
 
     private func tick(_ seconds: TimeInterval) {
+        elapsedUpdatedAt = Date()
         guard current != nil, !isScrubbing, seconds.isFinite else { return }
         elapsed = seconds
         if let value = player.currentItem?.duration.seconds, value.isFinite, value > 0 { duration = value }
@@ -417,12 +459,12 @@ final class PlaybackCoordinator {
             return
         }
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: current.track.title,
-            MPMediaItemPropertyAlbumTitle: current.item.title,
+            MPMediaItemPropertyTitle: track(for:current).title,
+            MPMediaItemPropertyAlbumTitle: track(for:current).albumTitle,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(playbackRate) : 0.0,
         ]
-        MPRemoteCommandCenter.shared().nextTrackCommand.isEnabled = (queueIndex.map { $0 + 1 < queue.count } ?? false) || repeatMode == 1
+        MPRemoteCommandCenter.shared().nextTrackCommand.isEnabled = (queueIndex.map { $0 + 1 < queue.count } ?? false) || repeatMode == .all
         MPRemoteCommandCenter.shared().previousTrackCommand.isEnabled = queueIndex != nil
         if let creator = current.item.creator { info[MPMediaItemPropertyArtist] = creator }
         if let duration { info[MPMediaItemPropertyPlaybackDuration] = duration }

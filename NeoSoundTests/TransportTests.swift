@@ -102,35 +102,6 @@ nonisolated final class APIStubProtocol: URLProtocol, @unchecked Sendable {
         #expect(!invalidated)
         #expect(api.token == "test-only-placeholder")
     }
-    @Test func websiteFavoritePreservesReviewAndNotifiesLibraryOnlyAfterSuccess() async throws {
-        let api = client()
-        let suite = "NeoSoundTests.favorites." + UUID().uuidString
-        let defaults = UserDefaults(suiteName:suite)!
-        defer { defaults.removePersistentDomain(forName:suite) }
-        defaults.set(Data("old test favorites".utf8),forKey:"asmrBookmarks")
-        defaults.set("dark",forKey:"appearance")
-        let store = ASMRStore(defaults:defaults,client:api)
-        #expect(defaults.object(forKey:"asmrBookmarks") == nil)
-        #expect(defaults.string(forKey:"appearance") == "dark")
-        try await store.saveReview(workID:123,rating:4,text:"Existing note",progress:"listening")
-        let request = APIStubProtocol.requests.withLock { $0[0] }
-        let body = APIStubProtocol.bodies.withLock { $0[0] }
-        let payload = try #require(JSONSerialization.jsonObject(with:body) as? [String:Any])
-        #expect(request.url?.path == "/api/review")
-        #expect(request.httpMethod == "PUT")
-        #expect(payload["work_id"] as? Int == 123)
-        #expect(payload["rating"] as? Int == 4)
-        #expect(payload["review_text"] as? String == "Existing note")
-        #expect(payload["progress"] as? String == "listening")
-        #expect(store.reviewRevision == 1)
-        api.token = nil
-        do {
-            try await store.saveReview(workID:123,rating:0,text:"",progress:"marked")
-            Issue.record("Expected login requirement")
-        } catch { #expect(store.reviewRevision == 1) }
-        #expect(APIStubProtocol.requests.withLock { $0.count } == 1)
-    }
-
     @Test func restoredSessionSurvivesOfflineAndServerFailures() async {
         let api = client()
         let suite = "NeoSoundTests.session." + UUID().uuidString

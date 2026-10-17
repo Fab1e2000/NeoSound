@@ -7,10 +7,8 @@ final class ASMRStore {
     let client: ASMRClient
     private(set) var user: ASMRUser?
     private(set) var sessionRevision = 0
-    private(set) var reviewRevision = 0
     var message: String?
     var accountBusy = false
-    var preferSmall: Bool { didSet { defaults.set(preferSmall, forKey: "preferSmall") } }
     private let defaults: UserDefaults
     private let saveToken: (String?) throws -> Void
     private var refreshingSession = false
@@ -30,7 +28,7 @@ final class ASMRStore {
         let host = defaults.string(forKey:"apiHost") ?? ASMRClient.hosts[0]
         self.client = client ?? ASMRClient(baseURL: URL(string: ASMRClient.hosts.contains(host) ? host : ASMRClient.hosts[0])!, token: TokenVault.read())
         for key in ["allowedTags", "blockedTags", "excludedTags"] { defaults.removeObject(forKey:key) }
-        preferSmall = defaults.object(forKey:"preferSmall") as? Bool ?? true
+        defaults.removeObject(forKey:"preferSmall") // Retired quality preference: play the file as chosen.
         defaults.removeObject(forKey:"asmrBookmarks") // Retired test-only local favorites.
         if let key = sessionCacheKey, defaults.string(forKey:"sessionUserKey") == key,
            let data = defaults.data(forKey:"sessionUser") {
@@ -98,12 +96,6 @@ final class ASMRStore {
         if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
         message = error.localizedDescription
     }
-    func saveReview(workID: Int, rating: Int, text: String, progress: String) async throws {
-        let revision = sessionRevision
-        _ = try await client.data("/api/review",method:"PUT",body:["work_id":workID,"rating":rating == 0 ? NSNull() : rating as Any,"review_text":text,"progress":progress],authenticated:true)
-        guard revision == sessionRevision else { throw CancellationError() }
-        reviewRevision += 1
-    }
 
 }
 
@@ -142,18 +134,5 @@ final class WorkFeed {
             if !(error is CancellationError) && (error as? URLError)?.code != .cancelled { self.error = error.localizedDescription }
         }
         if generation == ticket { loading = false }
-    }
-}
-
-nonisolated struct PlaylistPage: Decodable, Sendable {
-    let playlists: [ASMRPlaylist]
-    let pagination: Pagination
-}
-extension ASMRClient {
-    func playlists(page: Int = 1, filter: String = "all") async throws -> PlaylistPage {
-        try await request("/api/playlist/get-playlists", query:[.init(name:"page",value:String(page)),.init(name:"pageSize",value:"20"),.init(name:"filterBy",value:filter)], authenticated:true)
-    }
-    func mutatePlaylist(_ operation: String, body: [String: Any]) async throws {
-        _ = try await data("/api/playlist/" + operation, method:"POST", body:body, authenticated:true)
     }
 }

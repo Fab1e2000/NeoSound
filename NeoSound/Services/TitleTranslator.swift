@@ -106,12 +106,13 @@ final class TitleTranslator {
         lastError = nil
         requested.removeAll() // Untranslated titles retry with the new key.
     }
-    func display(_ title: String, translated: Bool) -> String {
-        let cleaned = WorkTitle.cleaned(title)
+    /// `clean: false` keeps brackets, e.g. track names such as 耳かき（左）.
+    func display(_ title: String, translated: Bool, clean: Bool = true) -> String {
+        let cleaned = clean ? WorkTitle.cleaned(title) : title.trimmingCharacters(in: .whitespacesAndNewlines)
         return translated ? translations[cleaned] ?? cleaned : cleaned
     }
-    func request(_ title: String) {
-        let cleaned = WorkTitle.cleaned(title)
+    func request(_ title: String, clean: Bool = true) {
+        let cleaned = clean ? WorkTitle.cleaned(title) : title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard hasKey, translations[cleaned] == nil, !requested.contains(cleaned), WorkTitle.isJapanese(cleaned) else { return }
         requested.insert(cleaned); pending.append(cleaned)
         guard !running else { return }

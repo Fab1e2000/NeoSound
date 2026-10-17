@@ -10,6 +10,7 @@ struct WorkBrowser: View {
     @State private var ascending = false
     @State private var subtitle = false
     @State private var seed = Int.random(in:0..<100)
+    @State private var loadedID: String?
     private var requestID: String { "\(keyword)|\(sort.rawValue)|\(ascending)|\(subtitle)|\(store.sessionRevision)" }
     var body: some View {
         ScrollView {
@@ -37,7 +38,12 @@ struct WorkBrowser: View {
         .navigationTitle(title)
         .background(Color(.systemGroupedBackground))
         .refreshable { seed = Int.random(in:0..<100); await load(reset:true) }
-        .task(id:requestID) { feed.clear(); await load(reset:true) }
+        .task(id:requestID) {
+            // .task reruns whenever the page reappears, e.g. back from a pushed tag page; keep what is already loaded.
+            if loadedID == requestID && feed.page > 0 { return }
+            feed.clear(); await load(reset:true)
+            if feed.page > 0 { loadedID = requestID }
+        }
     }
     private func loadMoreIfVisible() {
         guard paginationVisible, !feed.loading, feed.hasNext, feed.error == nil else { return }
@@ -180,7 +186,7 @@ struct ItemCard: View {
 }
 
 /// Wrap the website's tag, circle and voice chips within the card's available width.
-private struct WorkChipLayout: Layout {
+struct WorkChipLayout: Layout {
     var spacing: CGFloat = 4
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         arrangement(width:proposal.width ?? 180,subviews:subviews).size
