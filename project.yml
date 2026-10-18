@@ -24,16 +24,23 @@ targets:
           - Resources/MockData
           - Resources/Audio
           - Resources/Subtitles
+    # UIBackgroundModes has no INFOPLIST_KEY_ build setting; it must live in a real Info.plist,
+    # which Xcode merges with the generated keys below. Without it iOS suspends playback on lock.
+    info:
+      path: NeoSound/Info.plist
+      properties:
+        UIBackgroundModes: [audio]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.elsterlee.NeoSound
         TARGETED_DEVICE_FAMILY: "1"
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME: NeoSoundIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: NeoSound
         INFOPLIST_KEY_CFBundleDevelopmentRegion: zh-Hans
-        INFOPLIST_KEY_UIBackgroundModes: audio
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES

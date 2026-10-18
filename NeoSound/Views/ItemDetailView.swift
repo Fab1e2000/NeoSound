@@ -60,7 +60,7 @@ struct ItemDetailView: View {
             if let url = work.coverURL { ImageViewer(images:[ViewerImage(id:"cover",url:url,title:work.sourceID)]) }
         }
         .sheet(item:$extras) { kind in NavigationStack { ExtrasList(kind:kind,work:work,entries:entries(for:kind)) } }
-        .task(id:"\(store.sessionRevision)|\(store.loggedIn)") { await load() }
+        .task(id:store.client.baseURL) { await load() }
         .task(id:translatesTitles) { if translatesTitles { translator.request(work.title) } }
         .refreshable { await load() }
     }

@@ -1,102 +1,31 @@
 import Foundation
 import Observation
-import CryptoKit
 
+/// App-wide site state: the API client on the chosen host and one-off messages for the user.
 @Observable
 final class ASMRStore {
     let client: ASMRClient
-    private(set) var user: ASMRUser?
-    private(set) var sessionRevision = 0
     var message: String?
-    var accountBusy = false
     private let defaults: UserDefaults
-    private let saveToken: (String?) throws -> Void
-    private var refreshingSession = false
-    private var lastSessionCheck: Date?
-    var loggedIn: Bool { client.token != nil && user?.loggedIn != false }
-    private var sessionCacheKey: String? {
-        guard let token = client.token else { return nil }
-        return SHA256.hash(data:Data((client.baseURL.absoluteString + token).utf8)).map { String(format:"%02x",$0) }.joined()
-    }
-    private func cacheUser() {
-        defaults.set(try? JSONEncoder().encode(user),forKey:"sessionUser")
-        defaults.set(sessionCacheKey,forKey:"sessionUserKey")
-    }
-    init(defaults: UserDefaults = .standard, client: ASMRClient? = nil, saveToken: @escaping (String?) throws -> Void = { try TokenVault.save($0) }) {
-        self.saveToken = saveToken
+    init(defaults: UserDefaults = .standard, client: ASMRClient? = nil) {
         self.defaults = defaults
         let host = defaults.string(forKey:"apiHost") ?? ASMRClient.hosts[0]
-        self.client = client ?? ASMRClient(baseURL: URL(string: ASMRClient.hosts.contains(host) ? host : ASMRClient.hosts[0])!, token: TokenVault.read())
-        for key in ["allowedTags", "blockedTags", "excludedTags"] { defaults.removeObject(forKey:key) }
-        defaults.removeObject(forKey:"preferSmall") // Retired quality preference: play the file as chosen.
-        defaults.removeObject(forKey:"asmrBookmarks") // Retired test-only local favorites.
-        if let key = sessionCacheKey, defaults.string(forKey:"sessionUserKey") == key,
-           let data = defaults.data(forKey:"sessionUser") {
-            user = try? JSONDecoder().decode(ASMRUser.self,from:data)
-        }
-        self.client.onAuthenticationFailure = { [weak self] in
-            guard let self else { return }
-            do {
-                try self.logout()
-                self.message = "登录已失效，请重新登录。"
-            } catch { self.message = error.localizedDescription }
+        self.client = client ?? ASMRClient(baseURL: URL(string: ASMRClient.hosts.contains(host) ? host : ASMRClient.hosts[0])!)
+        // Retired preferences and the removed account feature's cached user.
+        for key in ["allowedTags", "blockedTags", "excludedTags", "preferSmall", "asmrBookmarks", "sessionUser", "sessionUserKey"] {
+            defaults.removeObject(forKey:key)
         }
     }
-    func refreshSession() async {
-        guard client.token != nil, !accountBusy, !refreshingSession else { return }
-        if let lastSessionCheck, Date().timeIntervalSince(lastSessionCheck) < 300 { return }
-        let revision = sessionRevision
-        let token = client.token
-        refreshingSession = true
-        defer { refreshingSession = false }
-        do {
-            let response: AuthResponse = try await client.request("/api/auth/me")
-            try Task.checkCancellation()
-            guard revision == sessionRevision, token == client.token else { return }
-            if response.user.loggedIn == false {
-                try logout()
-                message = "登录已失效，请重新登录。"
-            } else if response.user.loggedIn == true {
-                // Accept a renewed token if the server supplies one; never invent a refresh endpoint.
-                if let renewed = response.token, !renewed.isEmpty {
-                    try saveToken(renewed)
-                    client.token = renewed
-                }
-                user = response.user
-                cacheUser()
-                lastSessionCheck = Date()
-            }
-        } catch {
-            // Offline, timeouts and server failures do not erase the saved session.
-            // The client invalidates only authentication failures belonging to this session.
-        }
-    }
-    func login(name: String, password: String) async throws {
-        let revision = sessionRevision
-        accountBusy = true; defer { accountBusy = false }
-        let response: AuthResponse = try await client.request("/api/auth/me", method:"POST", body:["name":name,"password":password], sendToken:false)
-        guard revision == sessionRevision else { throw CancellationError() }
-        guard let token = response.token, !token.isEmpty else { throw ASMRAPIError.invalidResponse }
-        try saveToken(token)
-        client.token = token; user = response.user; sessionRevision += 1
-        cacheUser(); lastSessionCheck = Date()
-    }
-    func logout() throws {
-        try saveToken(nil); client.token = nil; user = nil; sessionRevision += 1
-        lastSessionCheck = nil
-        defaults.removeObject(forKey:"sessionUser")
-        defaults.removeObject(forKey:"sessionUserKey")
-    }
-    func changeHost(_ host: String) throws {
+    /// Drops a login token left in the Keychain by the removed account feature.
+    static func removeRetiredLoginToken() { try? TokenVault.save(nil, account:"token") }
+    func changeHost(_ host: String) {
         guard ASMRClient.hosts.contains(host), let url = URL(string: host), client.baseURL != url else { return }
-        try logout() // Tokens do not silently move to another origin.
         client.baseURL = url; defaults.set(host, forKey:"apiHost")
     }
     func report(_ error: Error) {
         if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
         message = error.localizedDescription
     }
-
 }
 
 @Observable

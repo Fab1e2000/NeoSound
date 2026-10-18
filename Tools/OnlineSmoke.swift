@@ -1,6 +1,6 @@
 import Foundation
 
-/// Read-only live checks using the production URLSession client and models. No token, media GET or account mutation.
+/// Read-only live checks using the production URLSession client and models. No media GET.
 @main struct OnlineSmoke {
     @MainActor static func main() async throws {
         let api = ASMRClient()
@@ -20,11 +20,9 @@ import Foundation
             guard !facets.isEmpty else { throw ASMRAPIError.invalidResponse }
             results[type] = facets.count
         }
-        let auth: AuthResponse = try await api.request("/api/auth/me")
-        guard auth.user.loggedIn == false else { throw ASMRAPIError.invalidResponse }
-        results["anonymous"] = true
-        let popular: WorkPage = try await api.request("/api/recommender/popular",method:"POST",body:["keyword":"","page":1,"pageSize":2,"subtitle":0,"localSubtitledWorks":[],"withPlaylistStatus":[]])
-        results["popular"] = popular.works.count
+        let allAges = try await api.works(keyword:ContentFilter.query(""))
+        guard !allAges.works.isEmpty, allAges.works.allSatisfy(ContentFilter.allows) else { throw ASMRAPIError.invalidResponse }
+        results["allAgesAndR15"] = allAges.pagination.totalCount
         results["time"] = ISO8601DateFormatter().string(from:Date())
         let output = try JSONSerialization.data(withJSONObject:results,options:[.prettyPrinted,.sortedKeys])
         print(String(decoding:output,as:UTF8.self))

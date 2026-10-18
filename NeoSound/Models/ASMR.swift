@@ -128,14 +128,6 @@ nonisolated struct Pagination: Decodable, Sendable {
     let totalCount: Int
     var hasNext: Bool { currentPage * pageSize < totalCount }
 }
-nonisolated struct ASMRUser: Codable, Sendable {
-    var loggedIn: Bool?
-    var name: String?
-}
-nonisolated struct AuthResponse: Decodable, Sendable {
-    let user: ASMRUser
-    let token: String?
-}
 extension KeyedDecodingContainer {
     nonisolated func decodeFlexibleID(forKey key: Key) throws -> String {
         if let s = try? decode(String.self, forKey: key) { return s }

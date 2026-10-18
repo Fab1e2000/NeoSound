@@ -31,10 +31,6 @@ struct RootView: View {
                 .presentationContentInteraction(.resizes)
                 .navigationTransition(.zoom(sourceID:NowPlayingView.transitionID,in:playerTransition))
         }
-        .task(id:scenePhase) {
-            if scenePhase == .active { await store.refreshSession() }
-        }
-        .onChange(of:store.sessionRevision) { playback.stop() }
         .onChange(of:scenePhase) { if scenePhase == .active { playback.updateSleepTimer() } }
         .alert("提示", isPresented:Binding(get:{ store.message != nil || playback.notice != nil },set:{ if !$0 { store.message = nil; playback.notice = nil } })) {
             Button("好") { store.message = nil; playback.notice = nil }

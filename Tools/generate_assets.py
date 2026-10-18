@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""生成 NeoSound 自有的合成测试素材：助眠音频（m4a）与 App 图标（png）。
+"""生成 NeoSound 自有的合成测试素材：助眠音频（m4a）。App 图标见 Tools/generate_app_icon.py。
 
 全部由随机噪声合成，不含任何第三方内容。依赖 macOS 自带的 afconvert。
 用法：python3 -I Tools/generate_assets.py
@@ -16,7 +16,6 @@ import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUDIO_DIR = os.path.join(ROOT, "NeoSound", "Resources", "Audio")
-ICON_PATH = os.path.join(ROOT, "NeoSound", "Resources", "Assets.xcassets", "AppIcon.appiconset", "AppIcon.png")
 SR = 22050
 
 
@@ -155,38 +154,8 @@ def write_m4a(name, samples):
     print("wrote", out)
 
 
-def write_icon(size=1024):
-    bg = (0x17, 0x24, 0x3D)
-    moon = (0xFF, 0x9F, 0x0A)
-    cx1, cy1, r1 = 0.47 * size, 0.52 * size, 0.30 * size
-    cx2, cy2, r2 = 0.60 * size, 0.42 * size, 0.25 * size
-    rows = []
-    for y in range(size):
-        row = bytearray([0])
-        for x in range(size):
-            d1 = math.hypot(x + 0.5 - cx1, y + 0.5 - cy1)
-            d2 = math.hypot(x + 0.5 - cx2, y + 0.5 - cy2)
-            c1 = max(0.0, min(1.0, r1 - d1 + 0.5))
-            c2 = max(0.0, min(1.0, r2 - d2 + 0.5))
-            a = c1 * (1 - c2)
-            row += bytes(int(bg[k] + (moon[k] - bg[k]) * a) for k in range(3))
-        rows.append(bytes(row))
-    raw = b"".join(rows)
-
-    def chunk(tag, data):
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
-    png += chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
-    os.makedirs(os.path.dirname(ICON_PATH), exist_ok=True)
-    with open(ICON_PATH, "wb") as f:
-        f.write(png)
-    print("wrote", ICON_PATH)
-
-
 def main():
     rng = random.Random(20261016)
-    write_icon()
     for name, fn, seconds in [
         ("rain", rain, 300),
         ("waves", waves, 300),

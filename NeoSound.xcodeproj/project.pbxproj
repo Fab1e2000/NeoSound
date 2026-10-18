@@ -24,6 +24,7 @@
 		35C1005826774BE866535DD4 /* AppleMusicLyricsMotionProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1992A9F14BA05A48E37E6B14 /* AppleMusicLyricsMotionProfile.swift */; };
 		408708326525684DEF8F7953 /* ItemDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A29AE257002C0ACB7AE979 /* ItemDetailView.swift */; };
 		4346CD573A9A7F7CC410B000 /* WorkBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DDF884FD76857A2FBF096FE /* WorkBrowser.swift */; };
+		48938409206FBF934A2A78AF /* NeoSoundIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 349CF6DFA78196A612544285 /* NeoSoundIcon.icon */; };
 		4974D16740F317D63FEFE0BA /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A70188FAE96B8024DFE5ED /* NowPlayingView.swift */; };
 		4A8D129D11FEE7D70F8698B0 /* LyricPhysicalSpringParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917EA44E9855E69F4DA63F21 /* LyricPhysicalSpringParameters.swift */; };
 		52B7B1A7E9140F841C8C9BC0 /* LyricPressInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E73B4EAB42FCD91D7E4B7D /* LyricPressInteraction.swift */; };
@@ -83,6 +84,7 @@
 		3010AFC77BF609F9D671FA5C /* WorkContents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkContents.swift; sourceTree = "<group>"; };
 		328AA7091A021905DB2A2602 /* NowPlayingTransitionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingTransitionCoordinator.swift; sourceTree = "<group>"; };
 		32A5560A0796E95BA529DB3C /* AppleMusicLocalLyricsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicLocalLyricsView.swift; sourceTree = "<group>"; };
+		349CF6DFA78196A612544285 /* NeoSoundIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = NeoSoundIcon.icon; sourceTree = "<group>"; };
 		39E4CF854197E17865B5CB7A /* NowPlayingQueuePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingQueuePage.swift; sourceTree = "<group>"; };
 		4552038CEFFC1B3B038CDB23 /* NowPlayingTransportButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingTransportButtonStyle.swift; sourceTree = "<group>"; };
 		4E4327ECA4A9B27DB9556C9F /* WebVTT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebVTT.swift; sourceTree = "<group>"; };
@@ -98,6 +100,7 @@
 		6D1C37E5A9C2E4517575C336 /* NeoSoundApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeoSoundApp.swift; sourceTree = "<group>"; };
 		7BA260FFB7C5F39F0E31FB3E /* TitleTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleTranslator.swift; sourceTree = "<group>"; };
 		7DDF884FD76857A2FBF096FE /* WorkBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkBrowser.swift; sourceTree = "<group>"; };
+		7DF2DC11A180C850C0E1F327 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7F0F7FA730759E04D18206E3 /* NowPlayingLyricsPagePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingLyricsPagePresentation.swift; sourceTree = "<group>"; };
 		917EA44E9855E69F4DA63F21 /* LyricPhysicalSpringParameters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricPhysicalSpringParameters.swift; sourceTree = "<group>"; };
 		930CD50E138262E50B93DF31 /* ASMRTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASMRTests.swift; sourceTree = "<group>"; };
@@ -145,6 +148,7 @@
 			isa = PBXGroup;
 			children = (
 				536AFDBF27F0ED897D55A405 /* Assets.xcassets */,
+				864FA70AB34C00A27F6197D4 /* AppIcons */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -204,6 +208,14 @@
 			path = NowPlaying;
 			sourceTree = "<group>";
 		};
+		864FA70AB34C00A27F6197D4 /* AppIcons */ = {
+			isa = PBXGroup;
+			children = (
+				349CF6DFA78196A612544285 /* NeoSoundIcon.icon */,
+			);
+			path = AppIcons;
+			sourceTree = "<group>";
+		};
 		9F6BC200C740983571A3F67B /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -246,6 +258,7 @@
 		E9FF7BE260AAE9D2FA4EF2A2 /* NeoSound */ = {
 			isa = PBXGroup;
 			children = (
+				7DF2DC11A180C850C0E1F327 /* Info.plist */,
 				EE3E5187B079D1C39D259B1E /* App */,
 				A6661B023FD68D401DFE8F5D /* Models */,
 				0C85460F3B633A965A8BAFF6 /* Resources */,
@@ -347,6 +360,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				294C8931E597A43C24C1E03D /* Assets.xcassets in Resources */,
+				48938409206FBF934A2A78AF /* NeoSoundIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -430,14 +444,14 @@
 		68649544CBE68EB65CE87D4D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = NeoSoundIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NeoSound/Info.plist;
 				INFOPLIST_KEY_CFBundleDevelopmentRegion = "zh-Hans";
 				INFOPLIST_KEY_CFBundleDisplayName = NeoSound;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -618,14 +632,14 @@
 		A0DA14482784198CD711DE3F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = NeoSoundIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NeoSound/Info.plist;
 				INFOPLIST_KEY_CFBundleDevelopmentRegion = "zh-Hans";
 				INFOPLIST_KEY_CFBundleDisplayName = NeoSound;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (

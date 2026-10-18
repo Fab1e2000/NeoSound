@@ -11,7 +11,7 @@ struct WorkBrowser: View {
     @State private var subtitle = false
     @State private var seed = Int.random(in:0..<100)
     @State private var loadedID: String?
-    private var requestID: String { "\(keyword)|\(sort.rawValue)|\(ascending)|\(subtitle)|\(store.sessionRevision)" }
+    private var requestID: String { "\(keyword)|\(sort.rawValue)|\(ascending)|\(subtitle)|\(store.client.baseURL.absoluteString)" }
     var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:16) {
@@ -53,7 +53,7 @@ struct WorkBrowser: View {
     private func load(reset: Bool, automatically: Bool = false) async {
         let client = store.client, keyword = keyword, sort = sort, ascending = ascending, subtitle = subtitle, seed = seed
         await feed.load(reset:reset,automatically:automatically) { page in
-            try await client.works(keyword:keyword,page:page,sort:sort,ascending:ascending,subtitle:subtitle,seed:seed)
+            try await client.works(keyword:ContentFilter.query(keyword),page:page,sort:sort,ascending:ascending,subtitle:subtitle,seed:seed)
         }
     }
 }

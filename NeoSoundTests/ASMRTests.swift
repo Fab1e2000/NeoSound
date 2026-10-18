@@ -51,6 +51,13 @@ import Testing
         #expect(WorkContents.display("ex01寝息ループ.wav") == ("EX","寝息ループ"))
         #expect(WorkContents.display("Extra Talk.mp3") == (nil,"Extra Talk"))
     }
+    @Test func searchQueriesExcludeAdultWorksOnTheServer() throws {
+        #expect(ContentFilter.query("") == "$-age:adult$")
+        #expect(ContentFilter.query("$tag:治愈$") == "$tag:治愈$ $-age:adult$")
+        let path = "/api/search/" + ASMRClient.encodeSegment(ContentFilter.query("$va:浅見ゆい$"))
+        let url = try ASMRClient.makeURL(base:URL(string:"https://api.asmr-200.com")!,path:path)
+        #expect(URLComponents(url:url,resolvingAgainstBaseURL:false)?.percentEncodedPath.removingPercentEncoding == "/api/search/$va:浅見ゆい$ $-age:adult$")
+    }
     @Test func contentFilterHidesAdultWorksAndPausesOnFilteredPages() async {
         var adult = ASMRWork(id:1,title:"a"); adult.nsfw = true
         var flagged = ASMRWork(id:2,title:"b"); flagged.nsfw = true

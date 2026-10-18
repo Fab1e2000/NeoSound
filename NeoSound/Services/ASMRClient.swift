@@ -3,25 +3,24 @@ import Security
 import Observation
 
 nonisolated enum ASMRAPIError: LocalizedError {
-    case response(Int, String), invalidResponse, missingLogin
+    case response(Int, String), invalidResponse
     var errorDescription: String? {
         switch self {
         case .response(let status, let message): "\(message)（\(status)）"
         case .invalidResponse: "服务器返回了无法识别的数据"
-        case .missingLogin: "请先登录 ASMR.ONE"
         }
     }
 }
 nonisolated enum TokenVault {
     static let service = "com.elsterlee.NeoSound.asmr"
-    static func read(account: String = "token") -> String? {
+    static func read(account: String) -> String? {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                kSecAttrAccount as String: account, kSecReturnData as String: true]
         var value: CFTypeRef?
         guard SecItemCopyMatching(q as CFDictionary, &value) == errSecSuccess, let data = value as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
-    static func save(_ token: String?, account: String = "token") throws {
+    static func save(_ token: String?, account: String) throws {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
         if let token {
             let attrs: [String: Any] = [kSecValueData as String: Data(token.utf8), kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
@@ -35,15 +34,13 @@ nonisolated enum TokenVault {
     }
 }
 
-/// Only this first-party client receives the bearer token; cover/media requests never inherit it.
+/// Anonymous client for the site's public API; covers and media are fetched separately from the URLs it returns.
 @Observable final class ASMRClient {
     static let hosts = ["https://api.asmr-200.com", "https://api.asmr.one", "https://api.asmr-100.com", "https://api.asmr-300.com"]
     var baseURL: URL
-    var token: String?
-    @ObservationIgnored var onAuthenticationFailure: (() -> Void)?
     private let session: URLSession
-    init(baseURL: URL = URL(string: hosts[0])!, token: String? = nil, session: URLSession = .shared) {
-        self.baseURL = baseURL; self.token = token; self.session = session
+    init(baseURL: URL = URL(string: hosts[0])!, session: URLSession = .shared) {
+        self.baseURL = baseURL; self.session = session
     }
     static func makeURL(base: URL, path: String, query: [URLQueryItem] = []) throws -> URL {
         var c = URLComponents(url: base, resolvingAgainstBaseURL: false)!
@@ -56,19 +53,15 @@ nonisolated enum TokenVault {
     static func encodeSegment(_ text: String) -> String {
         text.addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? ""
     }
-    func request<T: Decodable>(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil, authenticated: Bool = false, sendToken: Bool = true) async throws -> T {
-        let data = try await data(path, query: query, method: method, body: body, authenticated: authenticated, sendToken: sendToken)
+    func request<T: Decodable>(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil) async throws -> T {
+        let data = try await data(path, query: query, method: method, body: body)
         return try JSONDecoder().decode(T.self, from: data)
     }
-    func data(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil, authenticated: Bool = false, sendToken: Bool = true) async throws -> Data {
-        let requestToken = token
-        let requestOrigin = baseURL
-        if authenticated && token == nil { throw ASMRAPIError.missingLogin }
+    func data(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil) async throws -> Data {
         var r = URLRequest(url: try Self.makeURL(base: baseURL, path: path, query: query))
         r.httpMethod = method; r.timeoutInterval = 25
         r.setValue("application/json", forHTTPHeaderField: "Accept")
         r.setValue("zh-CN", forHTTPHeaderField: "Accept-Language")
-        if sendToken, let token { r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let body {
             r.httpBody = try JSONSerialization.data(withJSONObject: body)
             r.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -78,10 +71,6 @@ nonisolated enum TokenVault {
         guard (200..<300).contains(http.statusCode) else {
             let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             let message = object?["error"] as? String ?? "请求失败，请稍后重试"
-            if sendToken, requestToken != nil, requestToken == token, requestOrigin == baseURL,
-               http.statusCode == 401 || message == "jwt expired" || message == "No authorization token was found" {
-                onAuthenticationFailure?()
-            }
             throw ASMRAPIError.response(http.statusCode, message)
         }
         return data
@@ -97,11 +86,11 @@ nonisolated enum TokenVault {
         }
         return try await request(keyword.isEmpty ? "/api/works" : "/api/search/" + Self.encodeSegment(keyword), query: query)
     }
-    func work(_ id: Int) async throws -> ASMRWork { try await request("/api/\(token == nil ? "workInfo" : "work")/\(id)") }
+    func work(_ id: Int) async throws -> ASMRWork { try await request("/api/workInfo/\(id)") }
     func tracks(_ id: Int) async throws -> [ASMRNode] { try await request("/api/tracks/\(id)", query: [.init(name:"v",value:"2")]) }
 }
 
-/// API bodies and authentication must never follow redirects onto another origin.
+/// Request bodies never follow redirects onto another origin.
 nonisolated final class APIOriginGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     let origin: URL
     init(origin: URL) { self.origin = origin }

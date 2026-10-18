@@ -9,6 +9,7 @@ struct NeoSoundApp: App {
     @State private var translator: TitleTranslator
     @AppStorage("appearance") private var appearance = "system"
     init() {
+        ASMRStore.removeRetiredLoginToken()
         let store = ASMRStore()
         _store = State(initialValue: store)
         let playback = PlaybackCoordinator(store: store)
