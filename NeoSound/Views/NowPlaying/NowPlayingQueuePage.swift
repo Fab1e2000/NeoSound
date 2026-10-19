@@ -48,86 +48,90 @@ struct NowPlayingQueuePage: View {
                 .accessibilityHidden(!isSongHeaderHidden)
 
             List {
-                if presentation == .portrait {
-                    Group {
-                        if showsSongHeader {
-                            NowPlayingSongHeader(
-                                song: song,
-                                artworkNamespace: artworkNamespace,
-                                usesReferenceLayout: true,
-                                usesArtworkTransition:
-                                    usesArtworkTransition
-                                    && isSongHeaderAtRest
-                            )
-                        } else {
-                            Color.clear
-                                .frame(
-                                    height:
-                                        NowPlayingSongHeader
-                                        .referenceHeight
+                Group {
+                    if presentation == .portrait {
+                        Group {
+                            if showsSongHeader {
+                                NowPlayingSongHeader(
+                                    song: song,
+                                    artworkNamespace: artworkNamespace,
+                                    usesReferenceLayout: true,
+                                    usesArtworkTransition:
+                                        usesArtworkTransition
+                                        && isSongHeaderAtRest
                                 )
+                            } else {
+                                Color.clear
+                                    .frame(
+                                        height:
+                                            NowPlayingSongHeader
+                                            .referenceHeight
+                                    )
+                            }
                         }
-                    }
-                    .onGeometryChange(for: CGFloat.self) { geometry in
-                        geometry.size.height
-                    } action: { newHeight in
-                        if newHeight > 0 {
-                            songHeaderHeight = newHeight
+                        .onGeometryChange(for: CGFloat.self) { geometry in
+                            geometry.size.height
+                        } action: { newHeight in
+                            if newHeight > 0 {
+                                songHeaderHeight = newHeight
+                            }
                         }
-                    }
-                    .listRowInsets(.init())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                }
-
-                Section {
-                    Text("继续播放")
-                        .font(.title2.bold())
-                        .padding(.top, 14)
-                        .padding(.bottom, 10)
                         .listRowInsets(.init())
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                    }
 
-                    if upcomingEntries.isEmpty {
-                        ContentUnavailableView(
-                            "后面没有要播放的曲目了",
-                            systemImage: "list.bullet"
-                        )
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .listRowInsets(
-                            .init(
-                                top: 24,
-                                leading: 0,
-                                bottom: 24,
-                                trailing: 0
+                    Section {
+                        Text("继续播放")
+                            .font(.title2.bold())
+                            .padding(.top, 14)
+                            .padding(.bottom, 10)
+                            .listRowInsets(.init())
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+
+                        if upcomingEntries.isEmpty {
+                            ContentUnavailableView(
+                                "后面没有要播放的曲目了",
+                                systemImage: "list.bullet"
                             )
-                        )
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                    } else {
-                        ForEach(upcomingEntries) { entry in
-                            NowPlayingQueueRow(entry: entry)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .listRowInsets(
+                                .init(
+                                    top: 24,
+                                    leading: 0,
+                                    bottom: 24,
+                                    trailing: 0
+                                )
+                            )
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        } else {
+                            ForEach(upcomingEntries) { entry in
+                                NowPlayingQueueRow(entry: entry)
+                            }
+                            .onMove(perform: moveQueueItems)
                         }
-                        .onMove(perform: moveQueueItems)
+                    } header: {
+                        NowPlayingQueueModeControls()
+                            .padding(.vertical, 8)
+                            .frame(
+                                height:
+                                    isSongHeaderHidden
+                                        ? 0
+                                        : 60
+                            )
+                            .clipped()
+                            .opacity(isSongHeaderHidden ? 0 : 1)
+                            .allowsHitTesting(!isSongHeaderHidden)
+                            .accessibilityHidden(isSongHeaderHidden)
+                            .textCase(nil)
+                            .listRowInsets(.init())
                     }
-                } header: {
-                    NowPlayingQueueModeControls()
-                        .padding(.vertical, 8)
-                        .frame(
-                            height:
-                                isSongHeaderHidden
-                                    ? 0
-                                    : 60
-                        )
-                        .clipped()
-                        .opacity(isSongHeaderHidden ? 0 : 1)
-                        .allowsHitTesting(!isSongHeaderHidden)
-                        .accessibilityHidden(isSongHeaderHidden)
-                        .textCase(nil)
-                        .listRowInsets(.init())
                 }
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
             }
             .listStyle(.plain)
             .listSectionSpacing(0)

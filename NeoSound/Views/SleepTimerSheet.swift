@@ -19,43 +19,47 @@ struct SleepTimerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    VStack(spacing: 2) {
-                        Text(remainingText)
-                            .font(.system(size: 56, weight: .light).monospacedDigit())
-                            .contentTransition(.numericText())
-                        Text(caption)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                Group {
+                    Section {
+                        VStack(spacing: 2) {
+                            Text(remainingText)
+                                .font(.system(size: 56, weight: .light).monospacedDigit())
+                                .contentTransition(.numericText())
+                            Text(caption)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .listRowBackground(Color.clear)
                     }
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
-                }
 
-                Section {
-                    ForEach(options, id: \.0) { mode, label in
-                        Button {
-                            withAnimation { selection = mode }
-                        } label: {
-                            HStack {
-                                Text(label).foregroundStyle(Color.primary)
-                                Spacer()
-                                if selection == mode {
-                                    Image(systemName: "checkmark")
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.tint)
+                    Section {
+                        ForEach(options, id: \.0) { mode, label in
+                            Button {
+                                withAnimation { selection = mode }
+                            } label: {
+                                HStack {
+                                    Text(label).foregroundStyle(Color.primary)
+                                    Spacer()
+                                    if selection == mode {
+                                        Image(systemName: "checkmark")
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.tint)
+                                    }
                                 }
                             }
+                            .accessibilityAddTraits(selection == mode ? .isSelected : [])
                         }
-                        .accessibilityAddTraits(selection == mode ? .isSelected : [])
+                    }
+
+                    Section {
+                        Toggle("结束前慢慢调小声", isOn: $fadeOut)
+                    } footer: {
+                        Text("最后 30 秒淡出，不会突然停止。")
                     }
                 }
-
-                Section {
-                    Toggle("结束前慢慢调小声", isOn: $fadeOut)
-                } footer: {
-                    Text("最后 30 秒淡出，不会突然停止。")
-                }
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
             }
             .navigationTitle("睡眠定时")
             .navigationBarTitleDisplayMode(.inline)

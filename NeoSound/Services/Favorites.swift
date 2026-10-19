@@ -28,7 +28,6 @@ final class FavoritesStore {
         else { works.insert(work, at: 0) }
         save()
     }
-    func move(from source: IndexSet, to destination: Int) { works.move(fromOffsets: source, toOffset: destination); save() }
 
     private func save() {
         guard let fileURL else { return }

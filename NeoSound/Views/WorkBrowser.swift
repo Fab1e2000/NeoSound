@@ -68,7 +68,6 @@ private struct SortBar: View {
                 ForEach(WorkSort.allCases) { option in
                     chip(option.title,selected:sort == option) { sort = option }
                 }
-                Divider().frame(height:20)
                 if sort != .random {
                     chip(ascending ? "升序":"降序",systemImage:ascending ? "arrow.up":"arrow.down",selected:false) { ascending.toggle() }
                         .accessibilityHint("切换排序方向")
@@ -154,7 +153,6 @@ struct ItemCard: View {
                         }
                     }
             }.buttonStyle(.plain)
-            Divider()
             VStack(alignment:.leading,spacing:6) {
                 NavigationLink(value:item) {
                     Text(translator.display(item.title,translated:translatesTitles)).font(.subheadline.weight(.medium)).lineLimit(3,reservesSpace:true)

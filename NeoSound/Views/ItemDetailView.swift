@@ -73,7 +73,6 @@ struct ItemDetailView: View {
         let tagline = title[title.index(after:open)...].trimmingCharacters(in:CharacterSet(charactersIn:"～〜~ "))
         return main.isEmpty ? (title,nil) : (main,tagline.isEmpty ? nil : tagline)
     }
-    private var original: String { WorkTitle.cleaned(work.title) }
 
     private var titleBlock: some View {
         VStack(alignment:.leading,spacing:6) {
@@ -81,9 +80,6 @@ struct ItemDetailView: View {
             if !credits.isEmpty { Text(credits.joined(separator:" · ")).font(.footnote.weight(.semibold)).foregroundStyle(.tint) }
             Text(titleParts.main).font(.title2.bold())
             if let tagline = titleParts.tagline { Text(tagline).font(.subheadline).foregroundStyle(.secondary) }
-            if translator.display(work.title,translated:translatesTitles) != original {
-                Text(original).font(.caption).foregroundStyle(.secondary)
-            }
         }
         .frame(maxWidth:.infinity,alignment:.leading)
     }
@@ -98,11 +94,9 @@ struct ItemDetailView: View {
                 stat(Label(String(format:"%.2f",rating),systemImage:"star.fill"),caption:work.rate_count.map { "\($0) 条评价" } ?? "评分")
             }
             if let total = totalDuration {
-                if work.rate_average_2dp != nil { Divider().frame(height:36) }
                 stat(Text(DurationFormat.clock(total)),caption:"总时长")
             }
             if let downloads = work.dl_count {
-                if work.rate_average_2dp != nil || totalDuration != nil { Divider().frame(height:36) }
                 stat(Text("\(downloads)"),caption:"下载")
             }
         }
@@ -208,7 +202,6 @@ struct ItemDetailView: View {
                 .font(.subheadline.monospacedDigit()).frame(width:26,alignment:.leading)
                 VStack(alignment:.leading,spacing:2) {
                     Text(name).foregroundStyle(playing ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
-                    if name != parts.name { Text(parts.name).font(.caption).foregroundStyle(.secondary) }
                 }
                 .frame(maxWidth:.infinity,alignment:.leading)
                 .padding(.vertical,9)
@@ -231,8 +224,6 @@ struct ItemDetailView: View {
                 Button("加入播放队列",systemImage:"text.line.last.and.arrowtriangle.forward") { playback.enqueue(entry,in:work) }
             }
         }
-        // Outside the context menu so the separator is not lifted with the preview.
-        .overlay(alignment:.bottom) { if !last { Divider().padding(.leading,54) } }
         .task(id:translatesTitles) { if translatesTitles { translator.request(parts.name,clean:false) } }
     }
 
@@ -283,20 +274,16 @@ struct ItemDetailView: View {
             VStack(alignment:.leading,spacing:0) {
                 if let circle = work.circle {
                     NavigationLink(value:WorkQuery.circle(circle.name)) { infoRow("社团",circle.name,chevron:true) }.buttonStyle(.plain)
-                    Divider().padding(.leading,16)
                 }
                 ForEach(work.vas ?? []) { person in
                     NavigationLink(value:WorkQuery.va(person.name)) { infoRow("声优",person.name,chevron:true) }.buttonStyle(.plain)
-                    Divider().padding(.leading,16)
                 }
                 if let release = work.release {
                     infoRow("发售",[release,ageLabel].compactMap { $0 }.joined(separator:" · "))
-                    Divider().padding(.leading,16)
                 }
                 let languages = (work.language_editions ?? []).compactMap(\.label)
                 if !languages.isEmpty {
                     infoRow("语言",languages.joined(separator:" · "))
-                    Divider().padding(.leading,16)
                 }
                 if let tags = work.tags, !tags.isEmpty {
                     VStack(alignment:.leading,spacing:10) {
@@ -312,11 +299,9 @@ struct ItemDetailView: View {
                         }
                     }
                     .padding(16)
-                    Divider().padding(.leading,16)
                 }
                 if let buckets = work.rate_count_detail, buckets.contains(where:{ ($0.count ?? 0) > 0 }) {
                     ratingDistribution(buckets).padding(16)
-                    Divider().padding(.leading,16)
                 }
                 if let source = work.source_url.flatMap(URL.init(string:)), source.scheme == "https" {
                     Link("在 DLsite 查看原页面",destination:source).frame(maxWidth:.infinity,minHeight:48,alignment:.leading).padding(.horizontal,16)
@@ -431,14 +416,18 @@ struct ExtrasList: View {
     }
     var body: some View {
         List {
-            ForEach(folders,id:\.self) { folder in
-                Section(folder) {
-                    ForEach(entries.filter { $0.path == folder }) { entry in row(entry) }
+            Group {
+                ForEach(folders,id:\.self) { folder in
+                    Section(folder) {
+                        ForEach(entries.filter { $0.path == folder }) { entry in row(entry) }
+                    }
+                }
+                if kind == .subtitles && playback.current?.item.id != work.id {
+                    Text("先播放这部作品，再选择字幕。").font(.footnote).foregroundStyle(.secondary)
                 }
             }
-            if kind == .subtitles && playback.current?.item.id != work.id {
-                Text("先播放这部作品，再选择字幕。").font(.footnote).foregroundStyle(.secondary)
-            }
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
         }
         .navigationTitle(kind.title)
         .navigationBarTitleDisplayMode(.inline)
