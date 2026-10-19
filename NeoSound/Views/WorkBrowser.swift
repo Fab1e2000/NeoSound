@@ -132,6 +132,8 @@ struct WorkArtwork: View {
 }
 struct ItemCard: View {
     let item: ASMRWork
+    @ScaledMetric(relativeTo:.subheadline) private var titleHeight: CGFloat = 60
+    @ScaledMetric(relativeTo:.caption2) private var metadataHeight: CGFloat = 26
     @Environment(TitleTranslator.self) private var translator
     @AppStorage("translatesTitles") private var translatesTitles = true
     @AppStorage("showsSourceID") private var showsSourceID = false
@@ -156,19 +158,34 @@ struct ItemCard: View {
             VStack(alignment:.leading,spacing:6) {
                 NavigationLink(value:item) {
                     Text(translator.display(item.title,translated:translatesTitles)).font(.subheadline.weight(.medium)).lineLimit(3,reservesSpace:true)
-                        .frame(maxWidth:.infinity,alignment:.leading).foregroundStyle(.primary)
+                        .frame(maxWidth:.infinity,alignment:.leading)
+                        .frame(height:titleHeight,alignment:.topLeading).foregroundStyle(.primary)
                 }.buttonStyle(.plain)
-                WorkChipLayout(spacing:4) {
-                    ForEach(item.tags ?? []) { tag in
-                        chip(tag.name,namespace:"tag",color:.secondary)
+                VStack(spacing:0) {
+                    ScrollView(.horizontal) {
+                        HStack(spacing:4) {
+                            ForEach(item.vas ?? []) { va in chip(va.name,namespace:"va",color:.green,prefix:"CV ") }
+                            if let circle = item.circle { chip(circle.name,namespace:"circle",color:.orange) }
+                            if let duration = item.duration {
+                                Label(DurationFormat.clock(duration),systemImage:"clock")
+                                    .font(.caption2).padding(.horizontal,6).padding(.vertical,3)
+                                    .background(.quaternary,in:Capsule())
+                            }
+                        }
+                        .fixedSize(horizontal:true,vertical:false)
                     }
-                    if let circle = item.circle { chip(circle.name,namespace:"circle",color:.orange) }
-                    ForEach(item.vas ?? []) { va in chip(va.name,namespace:"va",color:.green) }
-                    if let duration = item.duration {
-                        Label(DurationFormat.clock(duration),systemImage:"clock")
-                            .font(.caption2).padding(.horizontal,6).padding(.vertical,3)
-                            .background(.quaternary,in:Capsule())
+                    .scrollIndicators(.hidden)
+                    .frame(height:metadataHeight,alignment:.leading)
+                    ScrollView(.horizontal) {
+                        HStack(spacing:4) {
+                            ForEach(item.tags ?? []) { tag in
+                                chip(tag.name,namespace:"tag",color:.secondary)
+                            }
+                        }
+                        .fixedSize(horizontal:true,vertical:false)
                     }
+                    .scrollIndicators(.hidden)
+                    .frame(height:metadataHeight,alignment:.leading)
                 }
             }.padding(8)
         }
@@ -177,9 +194,9 @@ struct ItemCard: View {
         .task(id:translatesTitles) { if translatesTitles { translator.request(item.title) } }
         .clipShape(.rect(cornerRadius:12))
     }
-    private func chip(_ title: String, namespace: String, color: Color) -> some View {
+    private func chip(_ title: String, namespace: String, color: Color, prefix: String = "") -> some View {
         NavigationLink(value:WorkQuery(title:title,keyword:"$\(namespace):\(title)$")) {
-            Text(title).font(.caption2).lineLimit(1).padding(.horizontal,6).padding(.vertical,3)
+            Text(prefix + title).font(.caption2).lineLimit(1).padding(.horizontal,6).padding(.vertical,3)
                 .foregroundStyle(color).background(color.opacity(0.12),in:Capsule())
         }.buttonStyle(.plain)
     }

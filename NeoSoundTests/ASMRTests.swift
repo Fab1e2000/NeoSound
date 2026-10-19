@@ -12,21 +12,15 @@ import Testing
         #expect(WorkTitle.isJapanese("ゆっくりおやすみなさい、お兄ちゃん"))
         #expect(!WorkTitle.isJapanese("在雨声中慢慢入睡吧"))
     }
-    @Test func localPlaylistsPersistAndToggleWorks() throws {
+    @Test func localPlaylistsRenameAndDelete() throws {
         let file = FileManager.default.temporaryDirectory.appending(path:"playlists-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at:file) }
         let store = LocalPlaylistStore(fileURL:file)
         let list = store.create(name:"  睡前  ")
-        let a = ASMRWork(id:1,title:"a"), b = ASMRWork(id:2,title:"b")
-        store.toggle(a,in:list.id); store.toggle(b,in:list.id)
-        store.move(from:IndexSet(integer:1),to:0,in:list.id)
+        #expect(store.playlists.map(\.name) == ["睡前"])
         store.rename(list.id,to:"助眠")
-        let reloaded = LocalPlaylistStore(fileURL:file)
-        #expect(reloaded.playlists.map(\.name) == ["助眠"])
-        #expect(reloaded.playlists.first?.works.map(\.id) == [2,1])
-        reloaded.toggle(a,in:list.id)
-        #expect(!reloaded.contains(a,in:list.id) && reloaded.contains(b,in:list.id))
-        reloaded.delete(list.id)
+        #expect(LocalPlaylistStore(fileURL:file).playlists.map(\.name) == ["助眠"])
+        store.delete(list.id)
         #expect(LocalPlaylistStore(fileURL:file).playlists.isEmpty)
     }
     @Test func workContentsGroupsVersionsAndExtras() throws {

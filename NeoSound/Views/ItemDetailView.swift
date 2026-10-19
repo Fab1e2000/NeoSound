@@ -5,6 +5,7 @@ struct ItemDetailView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
     @Environment(TitleTranslator.self) private var translator
+    @Environment(FavoritesStore.self) private var favorites
     @AppStorage("translatesTitles") private var translatesTitles = true
     let item: ASMRWork
     @State private var detail: ASMRWork?
@@ -14,11 +15,11 @@ struct ItemDetailView: View {
     @State private var loading = false
     @State private var loaded = false
     @State private var generation = 0
-    @State private var showsPlaylist = false
+    @State private var addingTrack: TrackEntry?
     @State private var extras: ExtraKind?
     @State private var showsCover = false
     private var work: ASMRWork { detail ?? item }
-    private var tracks: [TrackEntry] { contents.tracks(for:version) }
+    private var tracks: [TrackEntry] { contents.tracks(for:version) + contents.bonusAudio }
     private var isCurrentWork: Bool { playback.current?.item.id == work.id }
 
     var body: some View {
@@ -49,13 +50,10 @@ struct ItemDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement:.topBarTrailing) {
-                Menu {
-                    Button("加入列表",systemImage:"text.badge.plus") { showsPlaylist = true }
-                    ShareLink(item:URL(string:"https://asmr.one/work/\(work.sourceID)")!)
-                } label: { Image(systemName:"ellipsis") }
+                ShareLink(item:URL(string:"https://asmr.one/work/\(work.sourceID)")!)
             }
         }
-        .sheet(isPresented:$showsPlaylist) { NavigationStack { AddToPlaylistView(work:work) } }
+        .sheet(item:$addingTrack) { track in NavigationStack { AddToPlaylistView(track:track,work:work) } }
         .fullScreenCover(isPresented:$showsCover) {
             if let url = work.coverURL { ImageViewer(images:[ViewerImage(id:"cover",url:url,title:work.sourceID)]) }
         }
@@ -128,10 +126,14 @@ struct ItemDetailView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(!isCurrentWork && tracks.isEmpty)
-            Button { showsPlaylist = true } label: {
-                Label("加入列表",systemImage:"text.badge.plus").frame(maxWidth:.infinity)
+            let favorited = favorites.contains(work)
+            Button { favorites.toggle(work) } label: {
+                Label(favorited ? "已收藏" : "收藏",systemImage:favorited ? "heart.fill" : "heart")
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(maxWidth:.infinity)
             }
             .buttonStyle(.bordered)
+            .sensoryFeedback(.selection,trigger:favorited)
         }
         .controlSize(.large)
     }
@@ -165,6 +167,7 @@ struct ItemDetailView: View {
                 }
             }
             .background(Color(.secondarySystemGroupedBackground),in:.rect(cornerRadius:12))
+            .clipShape(.rect(cornerRadius:12))
             .padding(.horizontal,16)
             if !tracks.isEmpty, let total = totalDuration {
                 Text("\(tracks.count) 首 · \(DurationFormat.label(total))").font(.footnote).foregroundStyle(.secondary).padding(.horizontal,32)
@@ -213,12 +216,23 @@ struct ItemDetailView: View {
             }
             .frame(minHeight:52)
             .padding(.horizontal,16)
-            .overlay(alignment:.bottom) { if !last { Divider().padding(.leading,54) } }
+            .background(Color(.secondarySystemGroupedBackground))
             .contentShape(.rect)
+            // The long-press preview lifts the row as a rounded card of its own.
+            .contentShape(.contextMenuPreview,.rect(cornerRadius:12))
         }
         .buttonStyle(.plain)
         .disabled(entry.node.streamURL == nil)
-        .contextMenu { Button("加入播放队列") { playback.enqueue(entry,in:work) } }
+        .contextMenu {
+            Button("加入列表…",systemImage:"text.badge.plus") { addingTrack = entry }
+            Section {
+                Button("下一首播放",systemImage:"text.line.first.and.arrowtriangle.forward") { playback.playNext(entry,in:work) }
+                    .disabled(playback.current == nil)
+                Button("加入播放队列",systemImage:"text.line.last.and.arrowtriangle.forward") { playback.enqueue(entry,in:work) }
+            }
+        }
+        // Outside the context menu so the separator is not lifted with the preview.
+        .overlay(alignment:.bottom) { if !last { Divider().padding(.leading,54) } }
         .task(id:translatesTitles) { if translatesTitles { translator.request(parts.name,clean:false) } }
     }
 
@@ -228,7 +242,6 @@ struct ItemDetailView: View {
         switch kind {
         case .scripts: contents.scripts
         case .images: contents.images
-        case .audio: contents.bonusAudio
         case .subtitles: contents.subtitles
         case .others: contents.others
         }
@@ -382,13 +395,12 @@ private struct StarValueStyle: LabelStyle {
 }
 
 enum ExtraKind: String, CaseIterable, Identifiable {
-    case scripts, images, audio, subtitles, others
+    case scripts, images, subtitles, others
     var id: String { rawValue }
     var title: String {
         switch self {
         case .scripts: "台本与说明"
         case .images: "插画"
-        case .audio: "特典音声"
         case .subtitles: "字幕"
         case .others: "其他文件"
         }
@@ -396,13 +408,12 @@ enum ExtraKind: String, CaseIterable, Identifiable {
     func summary(_ entries: [TrackEntry]) -> String {
         switch self {
         case .images: "\(entries.count) 张"
-        case .audio: "\(entries.count) 条 · " + entries.prefix(2).map { WorkContents.display($0.title).name }.joined(separator:" · ")
         default: "\(entries.count) 份"
         }
     }
 }
 
-/// Files outside the main tracks: bonus audio plays, subtitles load into the player, the rest open in the browser.
+/// Extra files: audio and subtitles use the player; images and scripts have in-app readers.
 struct ExtrasList: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(TitleTranslator.self) private var translator
@@ -437,22 +448,17 @@ struct ExtrasList: View {
     private var folders: [String] { entries.reduce(into:[]) { if !$0.contains($1.path) { $0.append($1.path) } } }
     @ViewBuilder private func row(_ entry: TrackEntry) -> some View {
         switch kind {
-        case .audio:
-            Button {
-                playback.play(entry,in:work,tracks:entries.filter { $0.node.type == "audio" })
-                dismiss(); router.showsPlayer = true
-            } label: {
-                HStack {
-                    Label(translator.display(WorkContents.display(entry.title).name,translated:translatesTitles,clean:false),systemImage:"play.circle")
-                    Spacer()
-                    Text(entry.duration.map(DurationFormat.clock) ?? "--:--").font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
-                }
-            }
-            .disabled(entry.node.streamURL == nil)
-            .task(id:translatesTitles) { if translatesTitles { translator.request(WorkContents.display(entry.title).name,clean:false) } }
         case .subtitles:
             Button { playback.loadSubtitle(entry); dismiss() } label: { Label(entry.title,systemImage:"captions.bubble") }
                 .disabled(playback.current?.item.id != work.id)
+        case .scripts:
+            if let url = entry.node.mediaStreamUrl ?? entry.node.mediaDownloadUrl {
+                NavigationLink { DocumentReader(title:entry.title,url:url) } label: {
+                    Label(entry.title,systemImage:"doc.text")
+                }
+            } else {
+                Label(entry.title,systemImage:"doc").foregroundStyle(.secondary)
+            }
         case .images:
             if let image = viewerImages.first(where:{ $0.id == entry.id }) {
                 Button { viewing = image } label: { Label(entry.title,systemImage:"photo") }

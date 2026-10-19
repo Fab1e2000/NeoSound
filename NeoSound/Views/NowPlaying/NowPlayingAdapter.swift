@@ -81,6 +81,7 @@ nonisolated struct LyricLine: Identifiable, Equatable, Sendable {
     let id: Int
     let time: TimeInterval
     let text: String
+    var end: TimeInterval? = nil
 }
 
 nonisolated struct LocalLyrics: Equatable, Sendable {
@@ -97,7 +98,9 @@ nonisolated struct LocalLyrics: Equatable, Sendable {
             let middle = (low + high) / 2
             if lines[middle].time <= time { low = middle + 1 } else { high = middle }
         }
-        return low > 0 ? lines[low - 1].id : nil
+        guard low > 0 else { return nil }
+        let line = lines[low - 1]
+        return line.end.map { time < $0 } ?? true ? line.id : nil
     }
 
     static func parse(_ text: String) -> LocalLyrics {

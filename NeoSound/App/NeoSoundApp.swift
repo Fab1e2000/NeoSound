@@ -6,6 +6,7 @@ struct NeoSoundApp: App {
     @State private var playback: PlaybackCoordinator
     @State private var router = AppRouter()
     @State private var playlists = LocalPlaylistStore()
+    @State private var favorites = FavoritesStore()
     @State private var translator: TitleTranslator
     @AppStorage("appearance") private var appearance = "system"
     init() {
@@ -24,7 +25,7 @@ struct NeoSoundApp: App {
     }
     var body: some Scene {
         WindowGroup {
-            RootView().environment(store).environment(playback).environment(router).environment(translator).environment(playlists)
+            RootView().environment(store).environment(playback).environment(router).environment(translator).environment(playlists).environment(favorites)
                 .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil).tint(.orange)
         }
     }

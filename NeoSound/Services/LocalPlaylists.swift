@@ -2,15 +2,39 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// A playlist kept only on this device. Works are stored as snapshots so the list shows without a network request.
+/// One track in a playlist. Stream URLs expire, so only the work snapshot and the track's identity are kept;
+/// playback looks the track up again in a fresh file tree.
+nonisolated struct PlaylistTrack: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let work: ASMRWork
+    let title: String
+    let path: String
+    let hash: String?
+    let duration: Double?
+
+    init(entry: TrackEntry, work: ASMRWork) {
+        id = entry.id; self.work = work; title = entry.title; path = entry.path
+        hash = entry.node.hash; duration = entry.duration
+    }
+
+    /// The same track in a newly loaded tree: by ID, then by file hash, then by folder and file name.
+    func resolve(in entries: [TrackEntry]) -> TrackEntry? {
+        let audio = entries.filter { $0.node.type == "audio" && $0.node.streamURL != nil }
+        return audio.first { $0.id == id }
+            ?? hash.flatMap { hash in audio.first { $0.node.hash == hash } }
+            ?? audio.first { $0.path == path && $0.title == title }
+    }
+}
+
+/// A playlist kept only on this device: tracks from any works, played in order.
 nonisolated struct LocalPlaylist: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     var name: String
     let createdAt: Date
-    var works: [ASMRWork]
+    var tracks: [PlaylistTrack]
 }
 
-/// Local playlists saved as one JSON file in Application Support (`playlists.json`).
+/// Local playlists saved as one JSON file in Application Support (`track-playlists.json`).
 @Observable
 final class LocalPlaylistStore {
     private(set) var playlists: [LocalPlaylist] = []
@@ -28,13 +52,15 @@ final class LocalPlaylistStore {
     static var defaultFileURL: URL? {
         guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appending(path: "playlists.json")
+        // Playlists used to hold whole works; that test-only data is dropped rather than migrated.
+        try? FileManager.default.removeItem(at: dir.appending(path: "playlists.json"))
+        return dir.appending(path: "track-playlists.json")
     }
 
     @discardableResult
     func create(name: String) -> LocalPlaylist {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let playlist = LocalPlaylist(id: UUID(), name: trimmed.isEmpty ? "新列表" : trimmed, createdAt: Date(), works: [])
+        let playlist = LocalPlaylist(id: UUID(), name: trimmed.isEmpty ? "新列表" : trimmed, createdAt: Date(), tracks: [])
         playlists.append(playlist)
         save()
         return playlist
@@ -49,27 +75,27 @@ final class LocalPlaylistStore {
         playlists.removeAll { $0.id == id }
         save()
     }
-    func contains(_ work: ASMRWork, in id: UUID) -> Bool {
-        playlists.first { $0.id == id }?.works.contains { $0.id == work.id } ?? false
+    func contains(_ track: TrackEntry, in id: UUID) -> Bool {
+        playlists.first { $0.id == id }?.tracks.contains { $0.id == track.id } ?? false
     }
-    /// Adds the work to the end of the list, or removes it when already there.
-    func toggle(_ work: ASMRWork, in id: UUID) {
+    /// Adds the track to the end of the list, or removes it when already there.
+    func toggle(_ track: TrackEntry, of work: ASMRWork, in id: UUID) {
         guard let index = index(of: id) else { return }
-        if let position = playlists[index].works.firstIndex(where: { $0.id == work.id }) {
-            playlists[index].works.remove(at: position)
+        if let position = playlists[index].tracks.firstIndex(where: { $0.id == track.id }) {
+            playlists[index].tracks.remove(at: position)
         } else {
-            playlists[index].works.append(work)
+            playlists[index].tracks.append(PlaylistTrack(entry: track, work: work))
         }
         save()
     }
     func remove(at offsets: IndexSet, from id: UUID) {
         guard let index = index(of: id) else { return }
-        playlists[index].works.remove(atOffsets: offsets)
+        playlists[index].tracks.remove(atOffsets: offsets)
         save()
     }
     func move(from source: IndexSet, to destination: Int, in id: UUID) {
         guard let index = index(of: id) else { return }
-        playlists[index].works.move(fromOffsets: source, toOffset: destination)
+        playlists[index].tracks.move(fromOffsets: source, toOffset: destination)
         save()
     }
 

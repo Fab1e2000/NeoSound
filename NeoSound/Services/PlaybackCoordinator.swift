@@ -58,6 +58,7 @@ final class PlaybackCoordinator {
     var playbackRate: Float = 1 { didSet { if isPlaying { player.rate = playbackRate }; updateNowPlaying() } }
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var subtitleTask: Task<Void, Never>?
+    private(set) var subtitleRevision = 0
     private(set) var subtitleName: String?
     var queueIndex: Int? { current.flatMap { value in queue.firstIndex { $0.id == value.id } } }
 
@@ -65,7 +66,7 @@ final class PlaybackCoordinator {
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var wantsPlayback = false
     @ObservationIgnored private var stopAtEnd = false
-    @ObservationIgnored private var cues: [SubtitleCue] = []
+    private var cues: [SubtitleCue] = []
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var itemCancellables = Set<AnyCancellable>()
@@ -96,6 +97,28 @@ final class PlaybackCoordinator {
         if !queue.contains(where: { $0.id == selected.id }) { queue.append(selected) }
         start(selected)
     }
+    /// Plays `selected` from a ready-made queue that may span several works, such as the favorite tracks.
+    func play(_ selected: PlayingTrack, queue items: [PlayingTrack]) {
+        isShuffled = false; unshuffledQueue = []
+        queue = items
+        if !queue.contains(where: { $0.id == selected.id }) { queue.insert(selected, at:0) }
+        start(selected)
+    }
+    /// Plays a saved playlist from `selected`: reloads each work's file tree for fresh stream URLs, then queues
+    /// every track that still resolves. Returns a message for the user when the selected track cannot be played.
+    func play(_ selected: PlaylistTrack, from list: [PlaylistTrack]) async -> String? {
+        let client = store.client
+        let loads = Set(list.map(\.work.id)).map { id in (id, Task { try? await client.tracks(id) }) }
+        var trees: [Int: [TrackEntry]] = [:]
+        for (id, load) in loads {
+            if let nodes = await load.value { trees[id] = TrackEntry.flatten(nodes, workID:id) }
+        }
+        guard let entries = trees[selected.work.id] else { return "无法载入这部作品的音轨，请检查网络后重试。" }
+        guard let entry = selected.resolve(in:entries) else { return "找不到这首音轨，作品文件可能已经更新。" }
+        let items = list.compactMap { track in trees[track.work.id].flatMap(track.resolve).map { PlayingTrack(item:track.work, track:$0) } }
+        play(PlayingTrack(item:selected.work, track:entry), queue:items)
+        return nil
+    }
     private func start(_ selected: PlayingTrack) {
         loadTask?.cancel(); subtitleTask?.cancel(); generation += 1
         let ticket = generation
@@ -105,11 +128,20 @@ final class PlaybackCoordinator {
         cues = []; activeCue = nil; subtitleName = nil; nowPlayingArtwork = nil
         isScrubbing = false; phase = .resolving
         loadTask = Task { await load(selected, ticket:ticket) }
+        discoverSubtitle(for:selected, ticket:ticket)
     }
     func enqueue(_ track: TrackEntry, in item: ASMRWork) {
         guard track.node.type == "audio" else { return }
         let value = PlayingTrack(item:item, track:track)
         if !queue.contains(where: { $0.id == value.id }) { queue.append(value) }
+    }
+    /// Puts the track right after the current one, moving it there if it is already queued.
+    func playNext(_ track: TrackEntry, in item: ASMRWork) {
+        guard track.node.type == "audio", let current, track.id != current.id else { return }
+        let value = PlayingTrack(item:item, track:track)
+        queue.removeAll { $0.id == value.id }
+        queue.insert(value, at:(queueIndex ?? queue.count - 1) + 1)
+        if isShuffled, !unshuffledQueue.contains(where: { $0.id == value.id }) { unshuffledQueue.append(value) }
     }
     func removeFromQueue(_ id: String) { if id != current?.id { queue.removeAll { $0.id == id } } }
     func next() {
@@ -159,9 +191,22 @@ final class PlaybackCoordinator {
     /// Loaded subtitle cues as timed lyrics for the Now Playing lyrics page.
     var subtitleLyrics: LocalLyrics? {
         guard subtitleName != nil, !cues.isEmpty else { return nil }
-        return LocalLyrics(lines:cues.enumerated().map { LyricLine(id:$0.offset,time:$0.element.start,text:$0.element.text) },plainText:"",source:subtitleName ?? "")
+        return LocalLyrics(lines:cues.enumerated().map { LyricLine(id:$0.offset,time:$0.element.start,text:$0.element.text,end:$0.element.end) },plainText:"",source:subtitleName ?? "")
     }
     func retry() { if let current { start(current) } }
+    private func discoverSubtitle(for selected: PlayingTrack, ticket: Int) {
+        subtitleTask = Task {
+            do {
+                let tree = try await store.client.tracks(selected.item.id)
+                try Task.checkCancellation()
+                guard ticket == generation else { return }
+                let entries = TrackEntry.flatten(tree,workID:selected.item.id)
+                if let entry = SubtitleMatcher.match(selected.track, in:entries) {
+                    loadSubtitle(entry)
+                }
+            } catch { /* Subtitle discovery must not interrupt audio playback. */ }
+        }
+    }
     func loadSubtitle(_ entry: TrackEntry) {
         guard let url = entry.node.mediaStreamUrl ?? entry.node.mediaDownloadUrl, let current else { return }
         let ticket = generation
@@ -174,8 +219,8 @@ final class PlaybackCoordinator {
                 guard ticket == generation, self.current?.id == current.id else { return }
                 let parsed = WebVTT.parseSubtitle(data, filename:entry.title)
                 guard !parsed.isEmpty else { throw ASMRAPIError.invalidResponse }
-                cues = parsed; subtitleName = entry.title; updateCue()
-            } catch { if ticket == generation, !(error is CancellationError) { notice = "字幕载入失败：" + error.localizedDescription } }
+                cues = parsed; subtitleName = entry.title; subtitleRevision += 1; updateCue()
+            } catch { if ticket == generation, !Task.isCancelled { notice = "字幕载入失败：" + error.localizedDescription } }
         }
     }
 

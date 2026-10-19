@@ -41,13 +41,16 @@ struct NowPlayingView: View {
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { playerFrame = $0 }
-        .task(id: "\(player.currentTrack?.id ?? "")/\(player.subtitleName ?? "")") {
+        .task(id: "\(player.currentTrack?.id ?? "")/\(player.subtitleRevision)") {
             guard player.currentTrack != nil else { return }
             preparedLyricsSongID = nil
             await lyricsModel.load(player: player)
         }
         .task(id: transitionSettlementTaskID) { await settlePageTransition() }
         .task(id: lyricsEntranceTaskID) { await presentLyricsEntrance() }
+        .onChange(of: player.hasSubtitles) { _, available in
+            if !available && page == .lyrics { pageSelection.wrappedValue = .artwork }
+        }
         .onChange(of: page) { _, _ in showsLyricsControls = true }
         .onChange(of: player.currentTrack == nil) { _, empty in if empty { dismiss() } }
     }

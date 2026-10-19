@@ -53,6 +53,7 @@ extension View {
             .navigationDestination(for:LibraryRoute.self) { route in
                 switch route {
                 case .playlist(let id): LocalPlaylistView(id:id)
+                case .favoriteWorks: FavoriteWorksView()
                 }
             }
     }

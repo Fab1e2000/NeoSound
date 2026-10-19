@@ -203,8 +203,10 @@ struct NowPlayingPageSelector: View {
 
     var body: some View {
         HStack {
-            pageButton(page: .lyrics, systemImage: "captions.bubble", accessibilityLabel: "字幕")
-            Spacer()
+            if player.hasSubtitles {
+                pageButton(page: .lyrics, systemImage: "captions.bubble", accessibilityLabel: "字幕")
+                Spacer()
+            }
             AirPlayButton().frame(width: 44, height: 44).accessibilityLabel("隔空播放")
             Spacer()
             pageButton(page: .queue, systemImage: "list.bullet", accessibilityLabel: "继续播放",

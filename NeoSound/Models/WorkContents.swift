@@ -20,7 +20,7 @@ nonisolated struct WorkContents: Sendable {
     }
     var formats: [String] { versions.reduce(into: []) { if !$0.contains($1.format) { $0.append($1.format) } } }
     var hasSEChoice: Bool { Set(versions.map(\.withSE)).count > 1 }
-    var hasExtras: Bool { !(scripts.isEmpty && images.isEmpty && bonusAudio.isEmpty && subtitles.isEmpty && others.isEmpty) }
+    var hasExtras: Bool { !(scripts.isEmpty && images.isEmpty && subtitles.isEmpty && others.isEmpty) }
 
     func tracks(for version: TrackVersion?) -> [TrackEntry] {
         guard let version else { return [] }
