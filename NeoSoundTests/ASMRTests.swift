@@ -46,17 +46,23 @@ import Testing
         #expect(WorkContents.display("Extra Talk.mp3") == (nil,"Extra Talk"))
     }
     @Test func searchQueriesExcludeAdultWorksOnTheServer() throws {
-        #expect(ContentFilter.query("") == "$-age:adult$")
-        #expect(ContentFilter.query("$tag:治愈$") == "$tag:治愈$ $-age:adult$")
-        let path = "/api/search/" + ASMRClient.encodeSegment(ContentFilter.query("$va:浅見ゆい$"))
+        #expect(ContentFilter.query("",allowsAdult:false) == "$-age:adult$")
+        #expect(ContentFilter.query("$tag:治愈$",allowsAdult:false) == "$tag:治愈$ $-age:adult$")
+        let path = "/api/search/" + ASMRClient.encodeSegment(ContentFilter.query("$va:浅見ゆい$",allowsAdult:false))
         let url = try ASMRClient.makeURL(base:URL(string:"https://api.asmr-200.com")!,path:path)
         #expect(URLComponents(url:url,resolvingAgainstBaseURL:false)?.percentEncodedPath.removingPercentEncoding == "/api/search/$va:浅見ゆい$ $-age:adult$")
+    }
+    @Test func enablingR18FiltersNothing() {
+        var adult = ASMRWork(id:1,title:"a"); adult.nsfw = true
+        #expect(ContentFilter.allows(adult,allowsAdult:true))
+        #expect(ContentFilter.query(" $tag:治愈$ ",allowsAdult:true) == "$tag:治愈$")
+        #expect(ContentFilter.query("",allowsAdult:true) == "")
     }
     @Test func contentFilterHidesAdultWorksAndPausesOnFilteredPages() async {
         var adult = ASMRWork(id:1,title:"a"); adult.nsfw = true
         var flagged = ASMRWork(id:2,title:"b"); flagged.nsfw = true
         var clean = ASMRWork(id:3,title:"c"); clean.nsfw = false
-        #expect(!ContentFilter.allows(adult) && ContentFilter.allows(clean) && ContentFilter.allows(ASMRWork(id:4,title:"d")))
+        #expect(!ContentFilter.allows(adult,allowsAdult:false) && ContentFilter.allows(clean,allowsAdult:false) && ContentFilter.allows(ASMRWork(id:4,title:"d"),allowsAdult:false))
         let feed = WorkFeed()
         let filtered = WorkPage(works:[adult,flagged],pagination:Pagination(currentPage:1,pageSize:2,totalCount:20))
         await feed.load(reset:true) { _ in filtered }

@@ -9,7 +9,8 @@ struct RecommendView: View {
     @State private var paginationVisible = false
     @State private var loadedID: String?
     private var uuid: String? { store.loggedIn ? store.user?.recommenderUuid : nil }
-    private var requestID: String { "\(uuid ?? "popular")|\(store.client.baseURL.absoluteString)" }
+    @AppStorage(ContentFilter.storageKey) private var allowsAdult = false
+    private var requestID: String { "\(uuid ?? "popular")|\(allowsAdult)|\(store.client.baseURL.absoluteString)" }
     var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:16) {

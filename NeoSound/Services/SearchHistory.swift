@@ -57,10 +57,11 @@ final class SearchHistory {
     private func save() { defaults.set(try? JSONEncoder().encode(entries),forKey:"searchHistory") }
 }
 
-/// All-ages tags offered on the search page. The site's tag list mixes in adult tags, so only these ids
-/// are ever shown; live counts from `/api/tags/` reorder them, and the built-in counts are the fallback.
+/// Tags offered on the search page. The site's tag list mixes in adult tags, so unless R18 is enabled only
+/// these all-ages ids are shown; live counts from `/api/tags/` reorder them, and the built-in counts are the fallback.
 nonisolated enum HotTags {
-    static let groupTitles = ["声音与形式","情感与氛围","角色","题材"]
+    /// The last group collects site tags outside the all-ages list, shown only with R18 enabled.
+    static let groupTitles = ["声音与形式","情感与氛围","角色","题材","其他"]
     /// Tag id → index into `groupTitles`.
     static let groups: [String: Int] = Dictionary(uniqueKeysWithValues:raw.map { (String($0.0),$0.3) })
     static let allowed: [ASMRFacet] = raw.map { ASMRFacet(id:String($0.0),name:$0.1,count:$0.2) }
@@ -71,15 +72,16 @@ nonisolated enum HotTags {
         (235,"精灵/妖精",774,2),(176,"兽耳",713,2),(19,"恐怖",616,3),(455,"爱情喜剧",451,3),(55,"感动",331,1),(196,"关西腔",318,0),
         (29,"魔法",283,3),(7,"喜剧",273,3),(638,"吹耳朵",230,0),(636,"陪睡",182,0),(10,"科幻",167,3),(5,"搞笑",164,3),(308,"料理/美食",80,3)
     ]
-    /// The allowed tags with the site's current names and counts, most used first.
-    static func ranked(_ site: [ASMRFacet]) -> [ASMRFacet] {
+    /// The allowed tags with the site's current names and counts, most used first; with R18 enabled, every site tag.
+    static func ranked(_ site: [ASMRFacet], allowsAdult: Bool = false) -> [ASMRFacet] {
         let byID = Dictionary(site.map { ($0.id,$0) }) { first,_ in first }
-        return allowed.map { byID[$0.id] ?? $0 }.sorted { ($0.count ?? 0) > ($1.count ?? 0) }
+        let extra = allowsAdult ? site.filter { groups[$0.id] == nil } : []
+        return (allowed.map { byID[$0.id] ?? $0 } + extra).sorted { ($0.count ?? 0) > ($1.count ?? 0) }
     }
     /// Splits tags into the fixed groups, keeping their order within each; empty groups are dropped.
     static func grouped(_ tags: [ASMRFacet]) -> [(title: String, tags: [ASMRFacet])] {
         groupTitles.indices.compactMap { index in
-            let members = tags.filter { groups[$0.id] == index }
+            let members = tags.filter { (groups[$0.id] ?? groupTitles.count - 1) == index }
             return members.isEmpty ? nil : (groupTitles[index],members)
         }
     }
@@ -102,7 +104,7 @@ final class SearchSuggester {
         do {
             // Debounce: a new keystroke cancels this task before the request goes out.
             try await Task.sleep(for:.milliseconds(300))
-            let visible = try await client.works(keyword:ContentFilter.query(text)).works.filter(ContentFilter.allows)
+            let visible = try await client.works(keyword:ContentFilter.query(text)).works.filter { ContentFilter.allows($0) }
             try Task.checkCancellation()
             works = Array(visible.prefix(3))
             circles = Self.matching(visible.compactMap(\.circle?.name),text)

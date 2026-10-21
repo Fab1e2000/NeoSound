@@ -18,15 +18,16 @@ struct ItemDetailView: View {
     @State private var addingTrack: TrackEntry?
     @State private var extras: ExtraKind?
     @State private var showsCover = false
+    @AppStorage(ContentFilter.storageKey) private var allowsAdult = false
     private var work: ASMRWork { detail ?? item }
     private var tracks: [TrackEntry] { contents.tracks(for:version) + contents.bonusAudio }
     private var isCurrentWork: Bool { playback.current?.item.id == work.id }
 
     var body: some View {
-        if ContentFilter.allows(work) {
+        if ContentFilter.allows(work,allowsAdult:allowsAdult) {
             content
         } else {
-            ContentUnavailableView("作品不可用",systemImage:"eye.slash",description:Text("该作品含有不适合全年龄浏览的内容。"))
+            ContentUnavailableView("作品不可用",systemImage:"eye.slash",description:Text("该作品为 R18 作品。可在设置中启用 R18 后查看。"))
         }
     }
 

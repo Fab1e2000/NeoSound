@@ -107,9 +107,10 @@ nonisolated enum TokenVault {
     func popular(page: Int = 1) async throws -> WorkPage {
         try await request("/api/recommender/popular", method: "POST", body: Self.recommenderBody(page:page))
     }
-    /// The site's recommender takes the same keyword syntax, so the all-ages filter applies here too.
+    /// The site's recommender takes the same keyword syntax, so the 18+ filter applies here too.
     static func recommenderBody(page: Int) -> [String: Any] {
-        ["keyword":ContentFilter.query(""),"page":page,"pageSize":20,"subtitle":0,"localSubtitledWorks":[],"withPlaylistStatus":[]]
+        let keyword = ContentFilter.query("")
+        return ["keyword":keyword.isEmpty ? " " : keyword,"page":page,"pageSize":20,"subtitle":0,"localSubtitledWorks":[],"withPlaylistStatus":[]]
     }
     func tags() async throws -> [ASMRFacet] { try await request("/api/tags/") }
     func tracks(_ id: Int) async throws -> [ASMRNode] { try await request("/api/tracks/\(id)", query: [.init(name:"v",value:"2")]) }

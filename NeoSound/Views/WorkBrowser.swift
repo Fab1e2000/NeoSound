@@ -11,7 +11,8 @@ struct WorkBrowser: View {
     @State private var subtitle = false
     @State private var seed = Int.random(in:0..<100)
     @State private var loadedID: String?
-    private var requestID: String { "\(keyword)|\(sort.rawValue)|\(ascending)|\(subtitle)|\(store.client.baseURL.absoluteString)" }
+    @AppStorage(ContentFilter.storageKey) private var allowsAdult = false
+    private var requestID: String { "\(keyword)|\(sort.rawValue)|\(ascending)|\(subtitle)|\(allowsAdult)|\(store.client.baseURL.absoluteString)" }
     var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:16) {

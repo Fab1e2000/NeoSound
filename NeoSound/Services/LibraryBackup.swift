@@ -26,6 +26,7 @@ struct LibraryExport: Codable {
         var favoritesNewestFirst: Bool?
         var allTagsSortsByName: Bool?
         var lyricsFocusPosition: Double?
+        var allowsAdultContent: Bool?
     }
     struct Credentials: Codable, Equatable {
         var deepSeekAPIKey: String?
@@ -84,7 +85,8 @@ struct LibraryContext {
                                apiHost:store.client.baseURL.absoluteString,
                                favoritesNewestFirst:defaults.object(forKey:"favoritesNewestFirst") as? Bool,
                                allTagsSortsByName:defaults.object(forKey:"allTagsSortsByName") as? Bool,
-                               lyricsFocusPosition:defaults.object(forKey:"lyrics.focusPosition") as? Double)
+                               lyricsFocusPosition:defaults.object(forKey:"lyrics.focusPosition") as? Double,
+                               allowsAdultContent:defaults.object(forKey:ContentFilter.storageKey) as? Bool)
     }
     /// Applies only the values written in the file; unrecognized ones keep the current setting.
     func apply(_ settings: LibraryExport.Settings) {
@@ -95,6 +97,7 @@ struct LibraryContext {
         if let value = settings.favoritesNewestFirst { defaults.set(value,forKey:"favoritesNewestFirst") }
         if let value = settings.allTagsSortsByName { defaults.set(value,forKey:"allTagsSortsByName") }
         if let value = settings.lyricsFocusPosition { defaults.set(min(1,max(0,value)),forKey:"lyrics.focusPosition") }
+        if let value = settings.allowsAdultContent { defaults.set(value,forKey:ContentFilter.storageKey) }
     }
     /// Merges into what is here and never deletes anything.
     func restore(_ export: LibraryExport, includeSettings: Bool) -> LibraryRestoreReport {
@@ -130,7 +133,7 @@ struct LibraryRestoreReport: Equatable {
     var lines: [String] {
         var lines = ["新增 \(favoritesAdded) 部收藏作品，\(playlistsAdded) 个列表，共 \(tracksAdded) 条音轨。"]
         if translationsAdded > 0 { lines.append("新增 \(translationsAdded) 条标题译文，不会再次计费翻译。") }
-        if settingsApplied { lines.append("已恢复外观、标题翻译、API 线路等设置。") }
+        if settingsApplied { lines.append("已恢复外观、标题翻译、R18、API 线路等设置。") }
         switch apiKey {
         case .restored: lines.append("已恢复 DeepSeek API Key。")
         case .kept: lines.append("本机已有 DeepSeek API Key，保留当前的。")

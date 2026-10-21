@@ -125,7 +125,7 @@ final class WorkFeed {
             try Task.checkCancellation()
             guard generation == ticket else { return }
             var seen = Set<Int>()
-            let visible = response.works.filter(ContentFilter.allows)
+            let visible = response.works.filter { ContentFilter.allows($0) }
             emptyPages = visible.isEmpty && !response.works.isEmpty ? (reset ? 1 : emptyPages + 1) : 0
             works = ((reset ? [] : works) + visible).filter { seen.insert($0.id).inserted }
             page = response.pagination.currentPage; total = response.pagination.totalCount

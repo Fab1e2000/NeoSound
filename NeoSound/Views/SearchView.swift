@@ -18,15 +18,17 @@ struct SearchTab: View {
     @Environment(ASMRStore.self) private var store
     @Environment(SearchHistory.self) private var history
     @Bindable var model: SearchModel
-    @State private var hotTags = HotTags.allowed
-    @State private var tagsLoaded = false
+    @AppStorage(ContentFilter.storageKey) private var allowsAdult = false
+    /// The site's tag list with live counts; empty until loaded, when the built-in counts rank the tags.
+    @State private var siteTags: [ASMRFacet] = []
+    private var hotTags: [ASMRFacet] { HotTags.ranked(siteTags,allowsAdult:allowsAdult) }
     var body: some View {
         NavigationStack(path:$model.path) {
             ScrollView {
                 if model.query.isEmpty {
                     SearchHome(hotTags:Array(hotTags.prefix(16)),open:open)
                 } else {
-                    SearchSuggestions(text:model.query,open:open) { work in
+                    SearchSuggestions(text:model.query,tags:hotTags,open:open) { work in
                         history.add(.keyword(model.query)); model.path.append(work)
                     }
                 }
@@ -37,8 +39,8 @@ struct SearchTab: View {
             .accountToolbar()
             .task {
                 // Live counts only reorder the built-in list, so a failed request keeps the fallback silently.
-                guard !tagsLoaded, let site = try? await store.client.tags() else { return }
-                hotTags = HotTags.ranked(site); tagsLoaded = true
+                guard siteTags.isEmpty, let site = try? await store.client.tags() else { return }
+                siteTags = site
             }
             .navigationDestination(for:SearchRoute.self) { _ in AllTagsView(tags:hotTags,open:open) }
             .workDestinations()
@@ -116,7 +118,7 @@ private struct SearchHome: View {
     }
 }
 
-/// Every all-ages tag, grouped, with work counts and a filter field.
+/// Every tag on offer, grouped, with work counts and a filter field.
 private struct AllTagsView: View {
     let tags: [ASMRFacet]
     let open: (SearchEntry) -> Void
@@ -189,8 +191,11 @@ private struct SearchSuggestions: View {
     @AppStorage("translatesTitles") private var translatesTitles = true
     @State private var suggester = SearchSuggester()
     let text: String
+    /// The tags this search may suggest: the all-ages list, or every site tag with R18 enabled.
+    let tags: [ASMRFacet]
     let open: (SearchEntry) -> Void
     let openWork: (ASMRWork) -> Void
+    @AppStorage(ContentFilter.storageKey) private var allowsAdult = false
     private struct Suggestion: Hashable {
         let entry: SearchEntry
         let systemImage: String
@@ -200,7 +205,7 @@ private struct SearchSuggestions: View {
     private var suggestions: [Suggestion] {
         let recent = history.entries.filter { $0.name.localizedStandardContains(text) && $0.name != text }.prefix(2)
             .map { Suggestion(entry:$0,systemImage:"clock",label:"最近搜索") }
-        let tags = HotTags.allowed.filter { $0.name.localizedStandardContains(text) }.prefix(3)
+        let tags = self.tags.filter { $0.name.localizedStandardContains(text) }.prefix(3)
             .map { Suggestion(entry:SearchEntry(kind:.tag,name:$0.name),systemImage:"tag",label:"标签") }
         let circles = suggester.circles.map { Suggestion(entry:SearchEntry(kind:.circle,name:$0),systemImage:"person.2",label:"社团") }
         let vas = suggester.vas.map { Suggestion(entry:SearchEntry(kind:.va,name:$0),systemImage:"person",label:"声优") }
@@ -231,7 +236,7 @@ private struct SearchSuggestions: View {
             }
         }
         .padding(16)
-        .task(id:text) { await suggester.update(text,client:store.client) }
+        .task(id:"\(text)|\(allowsAdult)") { await suggester.update(text,client:store.client) }
     }
     private func row(systemImage: String, tint: Color, title: String, label: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action:action) {
