@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Search text and the search tab's navigation, shared with RootView, which owns the search field.
+/// Search text, presentation and the search tab's navigation; RootView activates search when the tab opens.
 @Observable
 final class SearchModel {
     var text = ""
@@ -14,7 +14,6 @@ final class SearchModel {
 }
 
 /// The search tab: recent searches and hot tags, then live suggestions while typing.
-/// The search field itself is RootView's, placed in the tab bar by the system.
 struct SearchTab: View {
     @Environment(ASMRStore.self) private var store
     @Environment(SearchHistory.self) private var history
@@ -43,6 +42,10 @@ struct SearchTab: View {
             .navigationDestination(for:SearchRoute.self) { _ in AllTagsView(tags:hotTags,open:open) }
             .workDestinations()
         }
+        // On the search tab's stack rather than the TabView, so the other tabs get no search field;
+        // the system still places it in the tab bar for the search role.
+        .searchable(text:$model.text,isPresented:$model.isPresented,prompt:"作品、标签、社团、声优")
+        .onSubmit(of:.search) { open(.keyword(model.query)) }
     }
     private func open(_ entry: SearchEntry) { model.open(entry,history:history) }
 }

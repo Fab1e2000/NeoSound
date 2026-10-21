@@ -41,6 +41,7 @@ struct SettingsView: View {
                     }
                     Text("某条线路访问慢或失败时可以换一条，切换后列表会重新加载。") .font(.footnote).foregroundStyle(.secondary)
                 }
+                LibraryBackupSection()
                 Section("关于") {
                     LabeledContent("版本",value:Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")
                     Link("ASMR.ONE 网站",destination:URL(string:"https://asmr.one/")!)

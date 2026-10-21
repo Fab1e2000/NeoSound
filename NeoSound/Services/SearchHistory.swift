@@ -46,6 +46,12 @@ final class SearchHistory {
         if entries.count > Self.limit { entries.removeLast(entries.count - Self.limit) }
         save()
     }
+    /// Appends a backup's entries that are missing here, keeping the newest `limit`.
+    func importEntries(_ imported: [SearchEntry]) {
+        var seen = Set(entries)
+        entries = Array((entries + imported.filter { seen.insert($0).inserted }).prefix(Self.limit))
+        save()
+    }
     func remove(_ entry: SearchEntry) { entries.removeAll { $0 == entry }; save() }
     func clear() { entries = []; save() }
     private func save() { defaults.set(try? JSONEncoder().encode(entries),forKey:"searchHistory") }

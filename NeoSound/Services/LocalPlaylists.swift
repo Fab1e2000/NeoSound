@@ -99,6 +99,24 @@ final class LocalPlaylistStore {
         save()
     }
 
+    /// Merges playlists from a backup without removing anything: unknown lists are added, and a list that
+    /// already exists gains the tracks it is missing. Returns the numbers of lists and tracks added.
+    @discardableResult
+    func importPlaylists(_ imported: [LocalPlaylist]) -> (playlists: Int, tracks: Int) {
+        var lists = 0, tracks = 0
+        for playlist in imported {
+            if let index = index(of: playlist.id) {
+                var ids = Set(playlists[index].tracks.map(\.id))
+                let missing = playlist.tracks.filter { ids.insert($0.id).inserted }
+                playlists[index].tracks += missing; tracks += missing.count
+            } else {
+                playlists.append(playlist); lists += 1; tracks += playlist.tracks.count
+            }
+        }
+        if lists + tracks > 0 { save() }
+        return (lists,tracks)
+    }
+
     private func index(of id: UUID) -> Int? { playlists.firstIndex { $0.id == id } }
     private func save() {
         guard let fileURL else { return }

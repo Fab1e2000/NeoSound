@@ -4,7 +4,6 @@ struct RootView: View {
     @Environment(ASMRStore.self) private var store
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
-    @Environment(SearchHistory.self) private var history
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var playerTransition
     @State private var tab = RootTab.browse
@@ -23,9 +22,7 @@ struct RootView: View {
             }
             Tab("搜索",systemImage:"magnifyingglass",value:.search,role:.search) { SearchTab(model:search) }
         }
-        // On the TabView the search field sits in the tab bar; opening the search tab starts typing right away.
-        .searchable(text:$search.text,isPresented:$search.isPresented,prompt:"作品、标签、社团、声优")
-        .onSubmit(of:.search) { search.open(.keyword(search.query),history:history) }
+        // Opening the search tab starts typing right away.
         .onChange(of:tab) { search.isPresented = tab == .search }
         // As in NeoDizzy: the tab bar minimizes on scroll and the mini player folds inline beside it.
         .tabBarMinimizeBehavior(.onScrollDown)
@@ -40,6 +37,7 @@ struct RootView: View {
                 .navigationTransition(.zoom(sourceID:NowPlayingView.transitionID,in:playerTransition))
         }
         .onChange(of:scenePhase) { if scenePhase == .active { playback.updateSleepTimer() } }
+        .background { LibraryAutoBackup() }
         .alert("提示", isPresented:Binding(get:{ store.message != nil || playback.notice != nil },set:{ if !$0 { store.message = nil; playback.notice = nil } })) {
             Button("好") { store.message = nil; playback.notice = nil }
         } message: { Text(store.message ?? playback.notice ?? "") }

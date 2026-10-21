@@ -8,6 +8,7 @@ struct NeoSoundApp: App {
     @State private var playlists = LocalPlaylistStore()
     @State private var favorites = FavoritesStore()
     @State private var searchHistory = SearchHistory()
+    @State private var libraryBackup = LibraryBackup()
     @State private var translator: TitleTranslator
     @AppStorage("appearance") private var appearance = "system"
     init() {
@@ -26,7 +27,7 @@ struct NeoSoundApp: App {
     }
     var body: some Scene {
         WindowGroup {
-            RootView().environment(store).environment(playback).environment(router).environment(translator).environment(playlists).environment(favorites).environment(searchHistory)
+            RootView().environment(store).environment(playback).environment(router).environment(translator).environment(playlists).environment(favorites).environment(searchHistory).environment(libraryBackup)
                 .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil).tint(.orange)
         }
     }

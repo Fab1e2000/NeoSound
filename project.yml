@@ -30,6 +30,9 @@ targets:
       path: NeoSound/Info.plist
       properties:
         UIBackgroundModes: [audio]
+        # Shows the app's Documents folder (and its Backup folder) in the Files app.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
     settings:

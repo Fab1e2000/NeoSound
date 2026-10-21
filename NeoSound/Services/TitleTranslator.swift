@@ -142,6 +142,17 @@ final class TitleTranslator {
             }
         }
     }
+    /// Adds translations from a backup, keeping ones already here; returns how many were added.
+    @discardableResult
+    func importTranslations(_ imported: [String: String]) -> Int {
+        let added = imported.filter { translations[$0.key] == nil }
+        guard !added.isEmpty else { return 0 }
+        translations.merge(added) { current, _ in current }
+        saveCache()
+        return added.count
+    }
+    /// The saved DeepSeek key, for the local backup only.
+    func apiKey() -> String? { readKey() }
     /// Unsent and failed titles can be requested again the next time their cards appear.
     private func giveBack(_ batch: [String]) {
         requested.subtract(batch + pending); pending = []

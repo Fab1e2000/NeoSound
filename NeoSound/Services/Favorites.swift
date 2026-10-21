@@ -29,6 +29,17 @@ final class FavoritesStore {
         save()
     }
 
+    /// Adds works missing here after the current ones (a backup's favorites are older); returns how many were added.
+    @discardableResult
+    func importWorks(_ imported: [ASMRWork]) -> Int {
+        var ids = Set(works.map(\.id))
+        let added = imported.filter { ids.insert($0.id).inserted }
+        guard !added.isEmpty else { return 0 }
+        works += added
+        save()
+        return added.count
+    }
+
     private func save() {
         guard let fileURL else { return }
         do {
