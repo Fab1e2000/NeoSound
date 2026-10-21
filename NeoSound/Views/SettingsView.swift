@@ -73,9 +73,9 @@ struct SettingsView: View {
             .listSectionSeparator(.hidden)
         }
         .navigationTitle("设置")
-        .confirmationDialog("启用 R18？",isPresented:$confirmsAdult,titleVisibility:.visible) {
-            Button("我已年满 18 岁，启用") { allowsAdult = true }
+        .alert("启用 R18？",isPresented:$confirmsAdult) {
             Button("取消",role:.cancel) {}
+            Button("我已年满 18 岁，启用") { allowsAdult = true }
         } message: {
             Text("启用后浏览、搜索、推荐和标签都不再过滤 18 禁内容。")
         }
