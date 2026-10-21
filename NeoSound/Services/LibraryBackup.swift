@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Portable library file: favorites, playlists, search history, title translations and settings.
-/// Only the backup kept in the app's own folder may carry the DeepSeek API key; shared exports never do.
+/// Only the backup kept in the app's own folder may carry the DeepSeek API key and login token; shared exports never do.
 struct LibraryExport: Codable {
     static let formatName = "NeoSoundLibrary"
     var format = Self.formatName
@@ -29,6 +29,8 @@ struct LibraryExport: Codable {
     }
     struct Credentials: Codable, Equatable {
         var deepSeekAPIKey: String?
+        /// ASMR.ONE login token, valid only on `settings.apiHost`.
+        var asmrToken: String?
     }
 
     func data() throws -> Data {
@@ -66,10 +68,13 @@ struct LibraryContext {
     let store: ASMRStore
     var defaults: UserDefaults = .standard
 
-    func snapshot(includingAPIKey: Bool = false) -> LibraryExport {
+    func snapshot(includingSecrets: Bool = false) -> LibraryExport {
         var export = LibraryExport(exportedAt:.now,favorites:favorites.works,playlists:playlists.playlists,
                                    searchHistory:history.entries,translations:translator.translations,settings:settings())
-        if includingAPIKey, let key = translator.apiKey() { export.credentials = .init(deepSeekAPIKey:key) }
+        if includingSecrets {
+            let credentials = LibraryExport.Credentials(deepSeekAPIKey:translator.apiKey(),asmrToken:store.loggedIn ? store.client.token : nil)
+            if credentials != .init() { export.credentials = credentials }
+        }
         return export
     }
     func settings() -> LibraryExport.Settings {
@@ -86,7 +91,7 @@ struct LibraryContext {
         if let appearance = settings.appearance, ["system","light","dark"].contains(appearance) { defaults.set(appearance,forKey:"appearance") }
         if let value = settings.translatesTitles { defaults.set(value,forKey:"translatesTitles") }
         if let value = settings.showsSourceID { defaults.set(value,forKey:"showsSourceID") }
-        if let host = settings.apiHost { store.changeHost(host) }
+        if let host = settings.apiHost { try? store.changeHost(host) }
         if let value = settings.favoritesNewestFirst { defaults.set(value,forKey:"favoritesNewestFirst") }
         if let value = settings.allTagsSortsByName { defaults.set(value,forKey:"allTagsSortsByName") }
         if let value = settings.lyricsFocusPosition { defaults.set(min(1,max(0,value)),forKey:"lyrics.focusPosition") }
@@ -103,6 +108,11 @@ struct LibraryContext {
             if translator.hasKey { report.apiKey = .kept }
             else { report.apiKey = (try? translator.setAPIKey(key)) != nil ? .restored : .failed }
         }
+        // A token only works on the host that issued it.
+        if let token = export.credentials?.asmrToken, !token.isEmpty, export.settings?.apiHost == store.client.baseURL.absoluteString {
+            if store.loggedIn { report.login = .kept }
+            else { report.login = (try? store.restore(token:token)) != nil ? .restored : .failed }
+        }
         return report
     }
 }
@@ -113,8 +123,9 @@ struct LibraryRestoreReport: Equatable {
     var tracksAdded = 0
     var translationsAdded = 0
     var settingsApplied = false
-    var apiKey: APIKey?
-    enum APIKey: Equatable { case restored, kept, failed }
+    var apiKey: Secret?
+    var login: Secret?
+    enum Secret: Equatable { case restored, kept, failed }
 
     var lines: [String] {
         var lines = ["新增 \(favoritesAdded) 部收藏作品，\(playlistsAdded) 个列表，共 \(tracksAdded) 条音轨。"]
@@ -124,6 +135,12 @@ struct LibraryRestoreReport: Equatable {
         case .restored: lines.append("已恢复 DeepSeek API Key。")
         case .kept: lines.append("本机已有 DeepSeek API Key，保留当前的。")
         case .failed: lines.append("DeepSeek API Key 没能保存到钥匙串，请在设置里重新填写。")
+        case nil: break
+        }
+        switch login {
+        case .restored: lines.append("已恢复 ASMR.ONE 登录；若已过期，App 会提示重新登录。")
+        case .kept: lines.append("本机已登录 ASMR.ONE，保留当前账号。")
+        case .failed: lines.append("ASMR.ONE 登录没能保存到钥匙串，请重新登录。")
         case nil: break
         }
         return lines
@@ -158,8 +175,8 @@ final class LibraryBackup {
     let folder: URL
     var fileURL: URL { folder.appending(path:Self.fileName) }
     var interval: Interval { didSet { defaults.set(interval.rawValue,forKey:Keys.interval) } }
-    /// Puts the DeepSeek API key in the backup so a reinstall needs no re-entry.
-    var includesAPIKey: Bool { didSet { defaults.set(includesAPIKey,forKey:Keys.apiKey) } }
+    /// Puts the DeepSeek API key and the login token in the backup so a reinstall needs no re-entry.
+    var includesSecrets: Bool { didSet { defaults.set(includesSecrets,forKey:Keys.apiKey) } }
     private(set) var lastBackup: Date?
     private(set) var lastError: String?
     private(set) var isRunning = false
@@ -173,7 +190,7 @@ final class LibraryBackup {
     init(folder: URL = URL.documentsDirectory.appending(path:"Backup",directoryHint:.isDirectory), defaults: UserDefaults = .standard) {
         self.folder = folder; self.defaults = defaults
         interval = defaults.string(forKey:Keys.interval).flatMap(Interval.init(rawValue:)) ?? .daily
-        includesAPIKey = defaults.object(forKey:Keys.apiKey) as? Bool ?? true
+        includesSecrets = defaults.object(forKey:Keys.apiKey) as? Bool ?? true
         lastBackup = defaults.object(forKey:Keys.last) as? Date
         // Created up front so the folder is easy to find in the Files app.
         try? FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
@@ -196,7 +213,7 @@ final class LibraryBackup {
         defer { isRunning = false }
         do {
             try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
-            try context.snapshot(includingAPIKey:includesAPIKey).data()
+            try context.snapshot(includingSecrets:includesSecrets).data()
                 .write(to:fileURL,options:[.atomic,.completeFileProtectionUntilFirstUserAuthentication])
             lastError = nil
             markBackedUp()

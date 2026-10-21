@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// Settings as a sheet from the avatar.
+struct SettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            SettingsView()
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement:.confirmationAction) { Button("完成") { dismiss() } } }
+        }
+    }
+}
+
 struct SettingsView: View {
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("translatesTitles") private var translatesTitles = true
@@ -10,6 +22,17 @@ struct SettingsView: View {
     var body: some View {
         List {
             Group {
+                Section {
+                    NavigationLink { AccountView() } label: {
+                        HStack(spacing:12) {
+                            AccountAvatar(size:44)
+                            VStack(alignment:.leading,spacing:2) {
+                                Text(store.loggedIn ? store.user?.name ?? "ASMR.ONE 账号" : "登录 ASMR.ONE").font(.headline)
+                                Text(store.loggedIn ? "已登录" : "登录后使用网站账号").font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
                 Section("外观") {
                     Picker("显示模式",selection:$appearance) {
                         Text("跟随系统").tag("system")
@@ -36,10 +59,13 @@ struct SettingsView: View {
                     Text("日语标题由 DeepSeek（deepseek-flash）翻译，按 API 用量计费；译文缓存在本机，每个标题只翻译一次。Key 只存在本机 Keychain，只发送给 api.deepseek.com。")
                 }
                 Section("API 线路") {
-                    Picker("线路",selection:Binding(get:{store.client.baseURL.absoluteString},set:{ store.changeHost($0) })) {
+                    Picker("线路",selection:Binding(get:{store.client.baseURL.absoluteString},set:{ host in
+                        do { try store.changeHost(host) } catch { store.report(error) }
+                    })) {
                         ForEach(ASMRClient.hosts,id:\.self) { Text($0.replacingOccurrences(of:"https://",with:"")).tag($0) }
                     }
-                    Text("某条线路访问慢或失败时可以换一条，切换后列表会重新加载。") .font(.footnote).foregroundStyle(.secondary)
+                    Text(store.loggedIn ? "某条线路访问慢或失败时可以换一条。登录只在当前线路有效，切换后需要重新登录。" : "某条线路访问慢或失败时可以换一条，切换后列表会重新加载。")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 LibraryBackupSection()
                 Section("关于") {

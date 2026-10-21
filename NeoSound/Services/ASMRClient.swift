@@ -34,13 +34,16 @@ nonisolated enum TokenVault {
     }
 }
 
-/// Anonymous client for the site's public API; covers and media are fetched separately from the URLs it returns.
+/// Client for the site's API. Only this first-party client receives the login token;
+/// covers and media are fetched separately from the URLs it returns and never inherit it.
 @Observable final class ASMRClient {
     static let hosts = ["https://api.asmr-200.com", "https://api.asmr.one", "https://api.asmr-100.com", "https://api.asmr-300.com"]
     var baseURL: URL
+    var token: String?
+    @ObservationIgnored var onAuthenticationFailure: (() -> Void)?
     private let session: URLSession
-    init(baseURL: URL = URL(string: hosts[0])!, session: URLSession = .shared) {
-        self.baseURL = baseURL; self.session = session
+    init(baseURL: URL = URL(string: hosts[0])!, token: String? = nil, session: URLSession = .shared) {
+        self.baseURL = baseURL; self.token = token; self.session = session
     }
     static func makeURL(base: URL, path: String, query: [URLQueryItem] = []) throws -> URL {
         var c = URLComponents(url: base, resolvingAgainstBaseURL: false)!
@@ -53,15 +56,18 @@ nonisolated enum TokenVault {
     static func encodeSegment(_ text: String) -> String {
         text.addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? ""
     }
-    func request<T: Decodable>(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil) async throws -> T {
-        let data = try await data(path, query: query, method: method, body: body)
+    func request<T: Decodable>(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil, sendToken: Bool = true) async throws -> T {
+        let data = try await data(path, query: query, method: method, body: body, sendToken: sendToken)
         return try JSONDecoder().decode(T.self, from: data)
     }
-    func data(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil) async throws -> Data {
+    func data(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil, sendToken: Bool = true) async throws -> Data {
+        let requestToken = sendToken ? token : nil
+        let requestOrigin = baseURL
         var r = URLRequest(url: try Self.makeURL(base: baseURL, path: path, query: query))
         r.httpMethod = method; r.timeoutInterval = 25
         r.setValue("application/json", forHTTPHeaderField: "Accept")
         r.setValue("zh-CN", forHTTPHeaderField: "Accept-Language")
+        if let requestToken { r.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization") }
         if let body {
             r.httpBody = try JSONSerialization.data(withJSONObject: body)
             r.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -71,6 +77,11 @@ nonisolated enum TokenVault {
         guard (200..<300).contains(http.statusCode) else {
             let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             let message = object?["error"] as? String ?? "请求失败，请稍后重试"
+            // Only a rejection of the token still in use ends the session; a wrong password at login does not.
+            if requestToken != nil, requestToken == token, requestOrigin == baseURL,
+               http.statusCode == 401 || message == "jwt expired" || message == "No authorization token was found" {
+                onAuthenticationFailure?()
+            }
             throw ASMRAPIError.response(http.statusCode, message)
         }
         return data
@@ -91,7 +102,7 @@ nonisolated enum TokenVault {
     func tracks(_ id: Int) async throws -> [ASMRNode] { try await request("/api/tracks/\(id)", query: [.init(name:"v",value:"2")]) }
 }
 
-/// Request bodies never follow redirects onto another origin.
+/// API bodies and the login token never follow redirects onto another origin.
 nonisolated final class APIOriginGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     let origin: URL
     init(origin: URL) { self.origin = origin }

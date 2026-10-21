@@ -109,6 +109,7 @@ struct PlaylistsView: View {
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle("列表")
+        .accountToolbar()
         .toolbar {
             ToolbarItem(placement:.topBarTrailing) {
                 Button("新建列表",systemImage:"plus") { naming = .create }

@@ -33,4 +33,4 @@ struct NeoSoundApp: App {
     }
 }
 @Observable
-final class AppRouter { var showsPlayer = false }
+final class AppRouter { var showsPlayer = false; var showsSettings = false }

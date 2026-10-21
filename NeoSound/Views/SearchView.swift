@@ -34,6 +34,7 @@ struct SearchTab: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("搜索")
             .navigationBarTitleDisplayMode(.large)
+            .accountToolbar()
             .task {
                 // Live counts only reorder the built-in list, so a failed request keeps the fallback silently.
                 guard !tagsLoaded, let site = try? await store.client.tags() else { return }

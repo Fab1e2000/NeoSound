@@ -17,9 +17,6 @@ struct RootView: View {
             Tab("列表",systemImage:"music.note.list",value:.library) {
                 NavigationStack { PlaylistsView().workDestinations() }
             }
-            Tab("设置",systemImage:"gearshape",value:.settings) {
-                NavigationStack { SettingsView() }
-            }
             Tab("搜索",systemImage:"magnifyingglass",value:.search,role:.search) { SearchTab(model:search) }
         }
         // Opening the search tab starts typing right away.
@@ -36,6 +33,9 @@ struct RootView: View {
                 .presentationContentInteraction(.resizes)
                 .navigationTransition(.zoom(sourceID:NowPlayingView.transitionID,in:playerTransition))
         }
+        // Settings, with the account at the top, open from the avatar on each tab.
+        .sheet(isPresented:$router.showsSettings) { SettingsSheet() }
+        .task(id:scenePhase) { if scenePhase == .active { await store.refreshSession() } }
         .onChange(of:scenePhase) { if scenePhase == .active { playback.updateSleepTimer() } }
         .background { LibraryAutoBackup() }
         .alert("提示", isPresented:Binding(get:{ store.message != nil || playback.notice != nil },set:{ if !$0 { store.message = nil; playback.notice = nil } })) {
@@ -43,7 +43,7 @@ struct RootView: View {
         } message: { Text(store.message ?? playback.notice ?? "") }
     }
 }
-enum RootTab: Hashable { case browse, library, settings, search }
+enum RootTab: Hashable { case browse, library, search }
 /// A filtered work list reached from a tag, circle or voice actor.
 struct WorkQuery: Hashable {
     let title: String

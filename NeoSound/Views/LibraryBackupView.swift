@@ -115,9 +115,9 @@ struct LibraryBackupSettingsView: View {
                     Text("到期后，App 打开或进入后台时覆盖 Backup 里的备份文件。")
                 }
                 Section {
-                    Toggle("备份 DeepSeek API Key",isOn:$backup.includesAPIKey)
+                    Toggle("备份 API Key 与登录",isOn:$backup.includesSecrets)
                 } footer: {
-                    Text("重装后导入备份即可免重新填写。拿到这个备份文件的人也能用你的 Key 计费，请勿分享。")
+                    Text("带上 DeepSeek API Key 和 ASMR.ONE 登录，重装后导入备份即可免重新填写。拿到这个备份文件的人也能用你的 Key 和账号，请勿分享。")
                 }
                 Section {
                     Button(backup.isRunning ? "正在备份…" : "立即备份") {
@@ -157,7 +157,7 @@ private struct LibraryExportSheet: View {
             Form {
                 Section {
                     Text("导出收藏的作品、我的列表、搜索记录、标题译文，以及外观、翻译、API 线路等设置。")
-                    Text("文件不包含音频或 DeepSeek API Key，可以分享。换签名重装请用「导入备份」。")
+                    Text("文件不包含音频、DeepSeek API Key 或登录信息，可以分享。换签名重装请用「导入备份」。")
                         .foregroundStyle(.secondary)
                 }
                 Section {

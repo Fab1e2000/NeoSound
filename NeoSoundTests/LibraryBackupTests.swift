@@ -16,7 +16,7 @@ struct LibraryBackupTests {
         return defaults
     }
     private func context(key: String? = nil) -> LibraryContext {
-        let store = ASMRStore(defaults:defaults())
+        let store = ASMRStore(defaults:defaults(),readToken:{ nil },saveToken:{ _ in })
         let translator = TitleTranslator(cacheURL:temporaryURL(),readKey:{ key })
         return LibraryContext(favorites:FavoritesStore(fileURL:temporaryURL()),playlists:LocalPlaylistStore(fileURL:temporaryURL()),
                               history:SearchHistory(defaults:defaults()),translator:translator,store:store,defaults:defaults())
@@ -60,7 +60,8 @@ struct LibraryBackupTests {
     @Test func onlyTheLocalBackupCarriesTheAPIKey() {
         let source = context(key:"sk-test")
         #expect(source.snapshot().credentials == nil)
-        #expect(source.snapshot(includingAPIKey:true).credentials?.deepSeekAPIKey == "sk-test")
+        #expect(source.snapshot(includingSecrets:true).credentials?.deepSeekAPIKey == "sk-test")
+        #expect(source.snapshot(includingSecrets:true).credentials?.asmrToken == nil)
     }
 
     @Test func backupWritesOnceAndProtectsAnUnimportedFile() throws {

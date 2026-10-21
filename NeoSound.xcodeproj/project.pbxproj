@@ -67,6 +67,7 @@
 		E68DA3ED077A92BD61DB5FF4 /* NowPlayingLyricsPagePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0F7FA730759E04D18206E3 /* NowPlayingLyricsPagePresentation.swift */; };
 		EA25FF90DA2682E2CA8D91C0 /* LyricsFontMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE331D6A287E2F3ADA31D119 /* LyricsFontMetrics.swift */; };
 		F12A1C6FBCABE164E8DA9C48 /* NowPlayingSongHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6472E002D819699EF63823 /* NowPlayingSongHeader.swift */; };
+		F651B38F2420086BBC559180 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE9143E6EA73735732BC274F /* AccountView.swift */; };
 		F767A6701E738C7F4F4BF4E4 /* ASMR.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DEA640375759371F1922A65 /* ASMR.swift */; };
 		FDB0F31C23794EB005BCEB46 /* NowPlayingArtworkPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28FBCB7A3911760083E7FA67 /* NowPlayingArtworkPage.swift */; };
 		FE8A2060156BF63CA2C14341 /* NowPlayingPortraitArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5890536AAAD5D3751AA1DE86 /* NowPlayingPortraitArtwork.swift */; };
@@ -149,12 +150,14 @@
 		EA76C5F631F19F1455E1100F /* AppleMusicLyricsTypographyProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicLyricsTypographyProfile.swift; sourceTree = "<group>"; };
 		EFF2BEA1B0DAA51D9F3FD763 /* TransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportTests.swift; sourceTree = "<group>"; };
 		F4141CAD12774FF60E4D16F8 /* ASMRStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASMRStore.swift; sourceTree = "<group>"; };
+		FE9143E6EA73735732BC274F /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		09982CE39F23B0E61B15059A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				FE9143E6EA73735732BC274F /* AccountView.swift */,
 				13857B823C58D049C75DB8CD /* AddToPlaylistView.swift */,
 				D10366D78B57D80B64ACA53A /* BrowseView.swift */,
 				4B14A3E35255EF8E70AC1D1F /* DocumentReader.swift */,
@@ -424,6 +427,7 @@
 				F767A6701E738C7F4F4BF4E4 /* ASMR.swift in Sources */,
 				57DAFC0C15195180641A0C82 /* ASMRClient.swift in Sources */,
 				1B7F4CD87B142B8E5D3C11BF /* ASMRStore.swift in Sources */,
+				F651B38F2420086BBC559180 /* AccountView.swift in Sources */,
 				811FA410B06AA39F94F1A5ED /* AddToPlaylistView.swift in Sources */,
 				B7094CD873C7D0011212C993 /* AppleMusicLocalLyricsView.swift in Sources */,
 				185FC01C6719C01B060FD03A /* AppleMusicLyricsDynamicSpring.swift in Sources */,
