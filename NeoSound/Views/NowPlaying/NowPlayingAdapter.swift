@@ -147,7 +147,8 @@ nonisolated struct LocalLyrics: Equatable, Sendable {
 struct ArtworkImage: View {
     let url: URL?
     var cornerRadius: CGFloat = 10
-    var aspectRatio: CGFloat = 1
+    /// nil fills whatever frame the caller gives.
+    var aspectRatio: CGFloat? = 1
     var decodeSize: CGSize? = nil
     var contentMode: ContentMode = .fill
 
@@ -167,9 +168,15 @@ struct ArtworkImage: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .aspectRatio(aspectRatio, contentMode: .fit)
+        .modifier(OptionalAspectRatio(ratio: aspectRatio))
         .clipShape(.rect(cornerRadius: cornerRadius))
         .accessibilityHidden(true)
+    }
+}
+private struct OptionalAspectRatio: ViewModifier {
+    let ratio: CGFloat?
+    func body(content: Content) -> some View {
+        if let ratio { content.aspectRatio(ratio, contentMode: .fit) } else { content }
     }
 }
 

@@ -38,7 +38,8 @@ struct SearchTests {
         #expect(ranked.count == HotTags.allowed.count)
         let adult = HotTags.ranked(site,allowsAdult:true)
         #expect(adult.first?.id == "128" && adult.count == HotTags.allowed.count + 1)
-        #expect(HotTags.grouped(adult).last?.title == "其他")
+        #expect(HotTags.grouped(adult).map(\.title).contains("玩法"))
+        #expect(HotTags.grouped([ASMRFacet(id:"99999",name:"新标签")]).map(\.title) == ["其他"])
     }
 
     @Test func suggestionsKeepDistinctMatchingNames() {
@@ -50,7 +51,7 @@ extension SearchTests {
     @Test func everyAllowedTagHasAGroup() {
         #expect(HotTags.allowed.allSatisfy { HotTags.groups[$0.id] != nil })
         let grouped = HotTags.grouped(HotTags.allowed)
-        #expect(grouped.map(\.title) == HotTags.groupTitles.dropLast())
+        #expect(grouped.map(\.title) == Array(HotTags.groupTitles.prefix(4)))
         #expect(grouped.flatMap(\.tags).count == HotTags.allowed.count)
         #expect(HotTags.grouped(HotTags.allowed.filter { $0.name == "治愈" }).map(\.title) == ["情感与氛围"])
     }

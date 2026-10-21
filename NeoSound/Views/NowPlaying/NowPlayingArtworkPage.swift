@@ -4,6 +4,7 @@ import SwiftUI
 
 struct NowPlayingArtworkPage: View {
     static let pausedArtworkScale: CGFloat = 0.74
+    static let artworkAspectRatio: CGFloat = 4.0 / 3
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(PlayerStore.self) private var player
@@ -37,22 +38,21 @@ struct NowPlayingArtworkPage: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let artworkSize = max(
+            // NeoSound: work covers are 4:3, so the frame is too and the whole cover shows.
+            let artworkWidth = max(
                 170,
                 min(
                     proxy.size.width + 16,
-                    proxy.size.height
+                    (proxy.size.height
                         - NowPlayingBottomControls.coreHeight
-                        - 92
+                        - 92) * Self.artworkAspectRatio
                 )
             )
-            let displayedArtworkSize =
-                artworkSize
-                * (
-                    isArtworkExpanded
-                        ? 1
-                        : Self.pausedArtworkScale
-                )
+            let artworkHeight = artworkWidth / Self.artworkAspectRatio
+            let displayedScale =
+                isArtworkExpanded
+                    ? 1
+                    : Self.pausedArtworkScale
 
             VStack(spacing: 0) {
                 Spacer(minLength: 8)
@@ -61,11 +61,12 @@ struct NowPlayingArtworkPage: View {
                     if showsArtwork {
                         ArtworkImage(
                             url: song.coverURL,
-                            cornerRadius: 12
+                            cornerRadius: 12,
+                            aspectRatio: Self.artworkAspectRatio
                         )
                         .frame(
-                            width: displayedArtworkSize,
-                            height: displayedArtworkSize
+                            width: artworkWidth * displayedScale,
+                            height: artworkHeight * displayedScale
                         )
                         .scaleEffect(artworkBounceScale)
                         .nowPlayingArtworkTransition(
@@ -84,8 +85,8 @@ struct NowPlayingArtworkPage: View {
                     } else {
                         Color.clear
                             .frame(
-                                width: artworkSize,
-                                height: artworkSize
+                                width: artworkWidth,
+                                height: artworkHeight
                             )
                             .onGeometryChange(
                                 for: CGRect.self
@@ -101,7 +102,7 @@ struct NowPlayingArtworkPage: View {
                             }
                     }
                 }
-                .frame(width: artworkSize, height: artworkSize)
+                .frame(width: artworkWidth, height: artworkHeight)
                 .animation(
                     accessibilityReduceMotion
                         ? nil

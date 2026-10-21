@@ -17,9 +17,11 @@ struct NowPlayingPortraitArtwork: View {
     @State private var bounceScale: CGFloat = 1
 
     var body: some View {
+        // NeoSound: fills the frame it is given, 4:3 on the artwork page and square in the song header.
         ArtworkImage(
             url: song.coverURL,
-            cornerRadius: 12
+            cornerRadius: 12,
+            aspectRatio: nil
         )
         .scaleEffect(bounceScale)
         .shadow(
