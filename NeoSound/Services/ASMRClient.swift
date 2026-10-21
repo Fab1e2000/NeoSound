@@ -87,6 +87,7 @@ nonisolated enum TokenVault {
         return try await request(keyword.isEmpty ? "/api/works" : "/api/search/" + Self.encodeSegment(keyword), query: query)
     }
     func work(_ id: Int) async throws -> ASMRWork { try await request("/api/workInfo/\(id)") }
+    func tags() async throws -> [ASMRFacet] { try await request("/api/tags/") }
     func tracks(_ id: Int) async throws -> [ASMRNode] { try await request("/api/tracks/\(id)", query: [.init(name:"v",value:"2")]) }
 }
 

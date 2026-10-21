@@ -4,21 +4,29 @@ struct RootView: View {
     @Environment(ASMRStore.self) private var store
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(AppRouter.self) private var router
+    @Environment(SearchHistory.self) private var history
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var playerTransition
+    @State private var tab = RootTab.browse
+    @State private var search = SearchModel()
     var body: some View {
         @Bindable var router = router
-        TabView {
-            Tab("浏览",systemImage:"square.grid.2x2") {
+        TabView(selection:$tab) {
+            Tab("浏览",systemImage:"square.grid.2x2",value:.browse) {
                 NavigationStack { BrowseView().workDestinations() }
             }
-            Tab("列表",systemImage:"music.note.list") {
+            Tab("列表",systemImage:"music.note.list",value:.library) {
                 NavigationStack { PlaylistsView().workDestinations() }
             }
-            Tab("设置",systemImage:"gearshape") {
+            Tab("设置",systemImage:"gearshape",value:.settings) {
                 NavigationStack { SettingsView() }
             }
+            Tab("搜索",systemImage:"magnifyingglass",value:.search,role:.search) { SearchTab(model:search) }
         }
+        // On the TabView the search field sits in the tab bar; opening the search tab starts typing right away.
+        .searchable(text:$search.text,isPresented:$search.isPresented,prompt:"作品、标签、社团、声优")
+        .onSubmit(of:.search) { search.open(.keyword(search.query),history:history) }
+        .onChange(of:tab) { search.isPresented = tab == .search }
         // As in NeoDizzy: the tab bar minimizes on scroll and the mini player folds inline beside it.
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory(isEnabled:playback.current != nil) {
@@ -37,6 +45,7 @@ struct RootView: View {
         } message: { Text(store.message ?? playback.notice ?? "") }
     }
 }
+enum RootTab: Hashable { case browse, library, settings, search }
 /// A filtered work list reached from a tag, circle or voice actor.
 struct WorkQuery: Hashable {
     let title: String
