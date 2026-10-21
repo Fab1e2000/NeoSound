@@ -131,6 +131,8 @@ nonisolated struct Pagination: Decodable, Sendable {
 nonisolated struct ASMRUser: Codable, Sendable {
     var loggedIn: Bool?
     var name: String?
+    /// The id the site's recommender knows this account by.
+    var recommenderUuid: String?
 }
 nonisolated struct AuthResponse: Decodable, Sendable {
     let user: ASMRUser

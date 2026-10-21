@@ -1,38 +1,35 @@
 import SwiftUI
 
-/// The signed-in user's initial in an accent circle, or a person symbol when signed out.
+/// The account symbol in a circle, as NeoDizzy shows a platform without an avatar image;
+/// ASMR.ONE accounts have no avatar, so signing in fills the symbol.
 struct AccountAvatar: View {
     @Environment(ASMRStore.self) private var store
     var size: CGFloat = 32
     var body: some View {
-        if store.loggedIn, let initial = store.user?.name?.trimmingCharacters(in:.whitespaces).first {
-            Text(String(initial).uppercased())
-                .font(.system(size:size * 0.45,weight:.semibold))
-                .foregroundStyle(.white)
-                .frame(width:size,height:size)
-                .background(Color.accentColor,in:.circle)
-        } else {
-            Image(systemName:"person.crop.circle.fill")
-                .resizable().scaledToFit().frame(width:size,height:size)
-                .foregroundStyle(.secondary)
-        }
+        Image(systemName:store.loggedIn ? "person.crop.circle.fill" : "person.crop.circle")
+            .resizable().scaledToFit()
+            .foregroundStyle(.tint)
+            .frame(width:size,height:size)
+            .clipShape(.circle)
+            .accessibilityHidden(true)
     }
 }
 
 extension View {
-    /// The top-right avatar on each tab's root page; it opens settings, where the account lives.
+    /// The top-right account button on each tab's root page; it opens settings, where the account lives.
     func accountToolbar() -> some View { modifier(AccountToolbar()) }
 }
+/// A plain system toolbar button, as NeoDizzy's settings button: it gets the bar's glass background.
 private struct AccountToolbar: ViewModifier {
     @Environment(AppRouter.self) private var router
     @Environment(ASMRStore.self) private var store
     func body(content: Content) -> some View {
         content.toolbar {
             ToolbarItem(placement:.topBarTrailing) {
-                Button { router.showsSettings = true } label: { AccountAvatar(size:30) }
-                    .accessibilityLabel(store.loggedIn ? "账号与设置，\(store.user?.name ?? "已登录")" : "账号与设置，未登录")
+                Button("账号与设置",systemImage:store.loggedIn ? "person.crop.circle.fill" : "person.crop.circle") { router.showsSettings = true }
+                    .accessibilityValue(store.loggedIn ? store.user?.name ?? "已登录" : "未登录")
+                    .accessibilityHint("打开账号和设置")
             }
-            .sharedBackgroundVisibility(.hidden)
         }
     }
 }
@@ -48,14 +45,14 @@ struct AccountView: View {
         Form {
             if store.loggedIn {
                 Section {
-                    HStack(spacing:14) {
-                        AccountAvatar(size:56)
-                        VStack(alignment:.leading,spacing:2) {
-                            Text(store.user?.name ?? "已登录").font(.title3.weight(.semibold))
-                            Text(store.client.baseURL.host ?? "").font(.footnote).foregroundStyle(.secondary)
-                        }
-                    }.padding(.vertical,4)
+                    VStack(spacing:8) {
+                        AccountAvatar(size:72)
+                        Text(store.user?.name ?? "已登录").font(.title2.weight(.bold))
+                        Text("ASMR.ONE · \(store.client.baseURL.host ?? "")").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth:.infinity).padding(.vertical,8)
                 }
+                .listRowBackground(Color.clear)
                 Section {
                     Button("退出登录",role:.destructive) {
                         do { try store.logout() } catch { self.error = error.localizedDescription }

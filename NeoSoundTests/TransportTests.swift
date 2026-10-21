@@ -106,6 +106,19 @@ nonisolated final class APIStubProtocol: URLProtocol, @unchecked Sendable {
         #expect(ASMRStore(defaults:settings,client:ASMRClient(token:saved),saveToken:{ _ in }).user?.name == "Example")
         #expect(ASMRStore(defaults:settings,client:ASMRClient(token:"another"),saveToken:{ _ in }).user == nil)
     }
+    @Test func recommendationsPostTheAccountAndAllAgesFilter() async throws {
+        let api = client(token:"test-placeholder")
+        _ = try await api.recommended(uuid:"uuid-placeholder",page:2)
+        _ = try await api.popular()
+        let requests = APIStubProtocol.requests.withLock { $0 }
+        #expect(requests.map(\.url?.path) == ["/api/recommender/recommend-for-user","/api/recommender/popular"])
+        #expect(requests.allSatisfy { $0.httpMethod == "POST" })
+        let bodies = try APIStubProtocol.bodies.withLock { $0 }.map { try #require(JSONSerialization.jsonObject(with:$0) as? [String:Any]) }
+        #expect(bodies[0]["recommenderUuid"] as? String == "uuid-placeholder")
+        #expect(bodies[0]["page"] as? Int == 2)
+        #expect(bodies.allSatisfy { $0["keyword"] as? String == ContentFilter.excludeAdult })
+        #expect(bodies[1]["recommenderUuid"] == nil)
+    }
     @Test func switchingHostSignsOut() throws {
         let api = client(token:"test-placeholder")
         var saved: String? = "test-placeholder"

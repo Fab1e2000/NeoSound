@@ -98,6 +98,19 @@ nonisolated enum TokenVault {
         return try await request(keyword.isEmpty ? "/api/works" : "/api/search/" + Self.encodeSegment(keyword), query: query)
     }
     func work(_ id: Int) async throws -> ASMRWork { try await request("/api/workInfo/\(id)") }
+    /// Works the site recommends for this account; needs the login token.
+    func recommended(uuid: String, page: Int = 1) async throws -> WorkPage {
+        var body = Self.recommenderBody(page:page); body["recommenderUuid"] = uuid
+        return try await request("/api/recommender/recommend-for-user", method: "POST", body: body)
+    }
+    /// The site's most popular works, for visitors who are not signed in.
+    func popular(page: Int = 1) async throws -> WorkPage {
+        try await request("/api/recommender/popular", method: "POST", body: Self.recommenderBody(page:page))
+    }
+    /// The site's recommender takes the same keyword syntax, so the all-ages filter applies here too.
+    static func recommenderBody(page: Int) -> [String: Any] {
+        ["keyword":ContentFilter.query(""),"page":page,"pageSize":20,"subtitle":0,"localSubtitledWorks":[],"withPlaylistStatus":[]]
+    }
     func tags() async throws -> [ASMRFacet] { try await request("/api/tags/") }
     func tracks(_ id: Int) async throws -> [ASMRNode] { try await request("/api/tracks/\(id)", query: [.init(name:"v",value:"2")]) }
 }

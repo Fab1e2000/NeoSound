@@ -14,6 +14,9 @@ struct RootView: View {
             Tab("浏览",systemImage:"square.grid.2x2",value:.browse) {
                 NavigationStack { BrowseView().workDestinations() }
             }
+            Tab("推荐",systemImage:"sparkles",value:.recommend) {
+                NavigationStack { RecommendView().workDestinations() }
+            }
             Tab("列表",systemImage:"music.note.list",value:.library) {
                 NavigationStack { PlaylistsView().workDestinations() }
             }
@@ -43,7 +46,7 @@ struct RootView: View {
         } message: { Text(store.message ?? playback.notice ?? "") }
     }
 }
-enum RootTab: Hashable { case browse, library, search }
+enum RootTab: Hashable { case browse, recommend, library, search }
 /// A filtered work list reached from a tag, circle or voice actor.
 struct WorkQuery: Hashable {
     let title: String

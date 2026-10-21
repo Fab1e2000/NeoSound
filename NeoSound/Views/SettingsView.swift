@@ -7,7 +7,7 @@ struct SettingsSheet: View {
         NavigationStack {
             SettingsView()
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement:.confirmationAction) { Button("完成") { dismiss() } } }
+                .toolbar { ToolbarItem(placement:.confirmationAction) { Button(role:.close) { dismiss() } } }
         }
     }
 }
@@ -22,27 +22,27 @@ struct SettingsView: View {
     var body: some View {
         List {
             Group {
-                Section {
+                Section("账号") {
+                    // As NeoDizzy's account rows: symbol, name, then the sign-in state.
                     NavigationLink { AccountView() } label: {
                         HStack(spacing:12) {
-                            AccountAvatar(size:44)
-                            VStack(alignment:.leading,spacing:2) {
-                                Text(store.loggedIn ? store.user?.name ?? "ASMR.ONE 账号" : "登录 ASMR.ONE").font(.headline)
-                                Text(store.loggedIn ? "已登录" : "登录后使用网站账号").font(.footnote).foregroundStyle(.secondary)
-                            }
+                            AccountAvatar(size:32)
+                            Text(store.loggedIn ? store.user?.name ?? "ASMR.ONE" : "ASMR.ONE")
+                            Spacer()
+                            Text(store.loggedIn ? "已登录" : "登录").foregroundStyle(.secondary)
                         }
                     }
                 }
                 Section("外观") {
-                    Picker("显示模式",selection:$appearance) {
+                    Picker(selection:$appearance) {
                         Text("跟随系统").tag("system")
                         Text("浅色").tag("light")
                         Text("深色").tag("dark")
-                    }
+                    } label: { Label("显示模式",systemImage:"circle.lefthalf.filled") }
                 }
                 Section("浏览") {
-                    Toggle("标题翻译成中文",isOn:$translatesTitles)
-                    Toggle("卡片显示 RJ 号",isOn:$showsSourceID)
+                    Toggle(isOn:$translatesTitles) { Label("标题翻译成中文",systemImage:"character.bubble") }
+                    Toggle(isOn:$showsSourceID) { Label("卡片显示 RJ 号",systemImage:"number") }
                 }
                 Section {
                     if translator.hasKey {
@@ -59,11 +59,11 @@ struct SettingsView: View {
                     Text("日语标题由 DeepSeek（deepseek-flash）翻译，按 API 用量计费；译文缓存在本机，每个标题只翻译一次。Key 只存在本机 Keychain，只发送给 api.deepseek.com。")
                 }
                 Section("API 线路") {
-                    Picker("线路",selection:Binding(get:{store.client.baseURL.absoluteString},set:{ host in
+                    Picker(selection:Binding(get:{store.client.baseURL.absoluteString},set:{ host in
                         do { try store.changeHost(host) } catch { store.report(error) }
                     })) {
                         ForEach(ASMRClient.hosts,id:\.self) { Text($0.replacingOccurrences(of:"https://",with:"")).tag($0) }
-                    }
+                    } label: { Label("线路",systemImage:"network") }
                     Text(store.loggedIn ? "某条线路访问慢或失败时可以换一条。登录只在当前线路有效，切换后需要重新登录。" : "某条线路访问慢或失败时可以换一条，切换后列表会重新加载。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
