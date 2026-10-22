@@ -51,11 +51,11 @@ final class ASMRStore {
         guard let token = response.token, !token.isEmpty else { throw ASMRAPIError.invalidResponse }
         try saveToken(token)
         client.token = token; user = response.user; sessionRevision += 1
-        cacheUser(); lastSessionCheck = .now
+        cacheUser(); lastSessionCheck = .now; clearRecentWorks()
     }
     func logout() throws {
         try saveToken(nil); client.token = nil; user = nil; sessionRevision += 1
-        lastSessionCheck = nil
+        lastSessionCheck = nil; clearRecentWorks()
         defaults.removeObject(forKey:"sessionUser"); defaults.removeObject(forKey:"sessionUserKey")
     }
     /// Signs in with a token from a backup; the next session check verifies it.
@@ -88,8 +88,37 @@ final class ASMRStore {
     func changeHost(_ host: String) throws {
         guard ASMRClient.hosts.contains(host), let url = URL(string: host), client.baseURL != url else { return }
         if client.token != nil { try logout() }
-        client.baseURL = url; defaults.set(host, forKey:"apiHost")
+        client.baseURL = url; defaults.set(host, forKey:"apiHost"); clearRecentWorks()
     }
+    // MARK: Recently opened works
+
+    /// Work details and file trees kept in memory, as NeoDizzy keeps recent albums: revisiting a work shows it
+    /// at once. Trees carry stream URLs, so they are kept for a shorter time than the details.
+    static let detailLifetime: TimeInterval = 30 * 60
+    static let treeLifetime: TimeInterval = 10 * 60
+    static let recentWorkLimit = 40
+    @ObservationIgnored private var recentWorks: [Int: (ASMRWork, Date)] = [:]
+    @ObservationIgnored private var recentTrees: [Int: ([ASMRNode], Date)] = [:]
+    func work(_ id: Int, refresh: Bool = false) async throws -> ASMRWork {
+        if !refresh, let cached = recentWorks[id], Date.now.timeIntervalSince(cached.1) < Self.detailLifetime { return cached.0 }
+        let work = try await client.work(id,reload:refresh)
+        remember(&recentWorks,id,(work,.now))
+        return work
+    }
+    func tracks(_ id: Int, refresh: Bool = false) async throws -> [ASMRNode] {
+        if !refresh, let cached = recentTrees[id], Date.now.timeIntervalSince(cached.1) < Self.treeLifetime { return cached.0 }
+        let nodes = try await client.tracks(id,reload:refresh)
+        remember(&recentTrees,id,(nodes,.now))
+        return nodes
+    }
+    /// The cached details, for showing a work before its refresh arrives.
+    func cachedWork(_ id: Int) -> ASMRWork? { recentWorks[id]?.0 }
+    func clearRecentWorks() { recentWorks = [:]; recentTrees = [:] }
+    private func remember<Value>(_ cache: inout [Int: (Value, Date)], _ id: Int, _ value: (Value, Date)) {
+        cache[id] = value
+        if cache.count > Self.recentWorkLimit, let oldest = cache.min(by: { $0.value.1 < $1.value.1 })?.key { cache[oldest] = nil }
+    }
+
     func report(_ error: Error) {
         if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
         message = error.localizedDescription

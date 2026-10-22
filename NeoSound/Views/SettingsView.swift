@@ -12,7 +12,7 @@ struct SettingsSheet: View {
     }
 }
 
-/// Account on top, then what is shown, translation, appearance, network, library and about.
+/// Account on top, then what is shown, translation, appearance, network, cache, library and about.
 struct SettingsView: View {
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("translatesTitles") private var translatesTitles = true
@@ -61,6 +61,7 @@ struct SettingsView: View {
                 } header: { Text("网络") } footer: {
                     Text(store.loggedIn ? "某条线路访问慢或失败时可以换一条。登录只在当前线路有效，切换后需要重新登录。" : "某条线路访问慢或失败时可以换一条，切换后列表会重新加载。")
                 }
+                CacheSettingsSection()
                 LibraryBackupSection()
                 Section("关于") {
                     LabeledContent {

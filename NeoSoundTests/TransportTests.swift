@@ -119,6 +119,18 @@ nonisolated final class APIStubProtocol: URLProtocol, @unchecked Sendable {
         #expect(bodies.allSatisfy { $0["keyword"] as? String == ContentFilter.excludeAdult })
         #expect(bodies[1]["recommenderUuid"] == nil)
     }
+    @Test func recentWorksAreReusedUntilRefreshed() async throws {
+        let api = client()
+        let store = ASMRStore(defaults:defaults(),client:api,saveToken:{ _ in })
+        APIStubProtocol.reply.withLock { $0 = (200,#"{"id":7,"title":"作品"}"#) }
+        _ = try await store.work(7); _ = try await store.work(7)
+        #expect(APIStubProtocol.requests.withLock { $0.count } == 1)
+        _ = try await store.work(7,refresh:true)
+        let requests = APIStubProtocol.requests.withLock { $0 }
+        #expect(requests.count == 2 && requests[1].cachePolicy == .reloadIgnoringLocalCacheData)
+        store.clearRecentWorks()
+        #expect(store.cachedWork(7) == nil)
+    }
     @Test func switchingHostSignsOut() throws {
         let api = client(token:"test-placeholder")
         var saved: String? = "test-placeholder"

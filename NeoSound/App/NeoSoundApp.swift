@@ -13,6 +13,10 @@ struct NeoSoundApp: App {
     @AppStorage("appearance") private var appearance = "system"
     init() {
         ASMRStore.removeRetiredLoginToken()
+        // Covers and work info are served cacheable (7 days and 4 hours); a larger shared cache keeps them
+        // on disk, so AsyncImage and the API reuse them instead of downloading again.
+        URLCache.shared = URLCache(memoryCapacity:64 * 1_024 * 1_024,diskCapacity:512 * 1_024 * 1_024,
+                                   directory:URL.cachesDirectory.appending(path:"URLCache",directoryHint:.isDirectory))
         let store = ASMRStore()
         _store = State(initialValue: store)
         let playback = PlaybackCoordinator(store: store)

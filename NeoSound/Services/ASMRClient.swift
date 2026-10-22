@@ -56,15 +56,17 @@ nonisolated enum TokenVault {
     static func encodeSegment(_ text: String) -> String {
         text.addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? ""
     }
-    func request<T: Decodable>(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil, sendToken: Bool = true) async throws -> T {
-        let data = try await data(path, query: query, method: method, body: body, sendToken: sendToken)
+    func request<T: Decodable>(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil, sendToken: Bool = true, reload: Bool = false) async throws -> T {
+        let data = try await data(path, query: query, method: method, body: body, sendToken: sendToken, reload: reload)
         return try JSONDecoder().decode(T.self, from: data)
     }
-    func data(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil, sendToken: Bool = true) async throws -> Data {
+    /// `reload` skips the shared URL cache, for a pull to refresh.
+    func data(_ path: String, query: [URLQueryItem] = [], method: String = "GET", body: [String: Any]? = nil, sendToken: Bool = true, reload: Bool = false) async throws -> Data {
         let requestToken = sendToken ? token : nil
         let requestOrigin = baseURL
         var r = URLRequest(url: try Self.makeURL(base: baseURL, path: path, query: query))
         r.httpMethod = method; r.timeoutInterval = 25
+        if reload { r.cachePolicy = .reloadIgnoringLocalCacheData }
         r.setValue("application/json", forHTTPHeaderField: "Accept")
         r.setValue("zh-CN", forHTTPHeaderField: "Accept-Language")
         if let requestToken { r.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization") }
@@ -97,7 +99,7 @@ nonisolated enum TokenVault {
         }
         return try await request(keyword.isEmpty ? "/api/works" : "/api/search/" + Self.encodeSegment(keyword), query: query)
     }
-    func work(_ id: Int) async throws -> ASMRWork { try await request("/api/workInfo/\(id)") }
+    func work(_ id: Int, reload: Bool = false) async throws -> ASMRWork { try await request("/api/workInfo/\(id)", reload: reload) }
     /// Works the site recommends for this account; needs the login token.
     func recommended(uuid: String, page: Int = 1) async throws -> WorkPage {
         var body = Self.recommenderBody(page:page); body["recommenderUuid"] = uuid
@@ -113,7 +115,7 @@ nonisolated enum TokenVault {
         return ["keyword":keyword.isEmpty ? " " : keyword,"page":page,"pageSize":20,"subtitle":0,"localSubtitledWorks":[],"withPlaylistStatus":[]]
     }
     func tags() async throws -> [ASMRFacet] { try await request("/api/tags/") }
-    func tracks(_ id: Int) async throws -> [ASMRNode] { try await request("/api/tracks/\(id)", query: [.init(name:"v",value:"2")]) }
+    func tracks(_ id: Int, reload: Bool = false) async throws -> [ASMRNode] { try await request("/api/tracks/\(id)", query: [.init(name:"v",value:"2")], reload: reload) }
 }
 
 /// API bodies and the login token never follow redirects onto another origin.

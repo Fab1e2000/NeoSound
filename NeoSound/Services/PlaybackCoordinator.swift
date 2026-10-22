@@ -75,9 +75,14 @@ final class PlaybackCoordinator {
     @ObservationIgnored private var sleepTask: Task<Void, Never>?
     @ObservationIgnored private var resumeAfterInterruption = false
     @ObservationIgnored private var nowPlayingArtwork: MPMediaItemArtwork?
+    @ObservationIgnored private let cache: AudioPlaybackCache
+    /// The spool for the current track while it streams into the audio cache.
+    @ObservationIgnored private var audioCacheJob: UUID?
+    /// The current track's cache key when it plays from a cached file.
+    @ObservationIgnored private var cachedFileKey: String?
 
-    init(store: ASMRStore) {
-        self.store = store
+    init(store: ASMRStore, cache: AudioPlaybackCache = .shared) {
+        self.store = store; self.cache = cache
         player.automaticallyWaitsToMinimizeStalling = true
         player.publisher(for: \.timeControlStatus)
             .receive(on: RunLoop.main)
@@ -107,8 +112,8 @@ final class PlaybackCoordinator {
     /// Plays a saved playlist from `selected`: reloads each work's file tree for fresh stream URLs, then queues
     /// every track that still resolves. Returns a message for the user when the selected track cannot be played.
     func play(_ selected: PlaylistTrack, from list: [PlaylistTrack]) async -> String? {
-        let client = store.client
-        let loads = Set(list.map(\.work.id)).map { id in (id, Task { try? await client.tracks(id) }) }
+        let store = store
+        let loads = Set(list.map(\.work.id)).map { id in (id, Task { try? await store.tracks(id) }) }
         var trees: [Int: [TrackEntry]] = [:]
         for (id, load) in loads {
             if let nodes = await load.value { trees[id] = TrackEntry.flatten(nodes, workID:id) }
@@ -122,6 +127,7 @@ final class PlaybackCoordinator {
     private func start(_ selected: PlayingTrack) {
         loadTask?.cancel(); subtitleTask?.cancel(); generation += 1
         let ticket = generation
+        releaseAudioCache()
         player.pause(); player.replaceCurrentItem(with:nil); itemCancellables.removeAll()
         wantsPlayback = true
         current = selected; elapsed = 0; duration = selected.track.duration
@@ -197,7 +203,7 @@ final class PlaybackCoordinator {
     private func discoverSubtitle(for selected: PlayingTrack, ticket: Int) {
         subtitleTask = Task {
             do {
-                let tree = try await store.client.tracks(selected.item.id)
+                let tree = try await store.tracks(selected.item.id)
                 try Task.checkCancellation()
                 guard ticket == generation else { return }
                 let entries = TrackEntry.flatten(tree,workID:selected.item.id)
@@ -263,6 +269,7 @@ final class PlaybackCoordinator {
 
     func stop(notice: String? = nil) {
         loadTask?.cancel(); subtitleTask?.cancel(); generation += 1
+        releaseAudioCache()
         player.pause()
         player.replaceCurrentItem(with: nil)
         itemCancellables.removeAll()
@@ -334,12 +341,23 @@ final class PlaybackCoordinator {
         do {
             guard let url = selected.track.node.streamURL else { throw ASMRAPIError.invalidResponse }
             phase = .preparing
-            let asset = AVURLAsset(url:url)
-            let playable = try await asset.load(.isPlayable)
-            try Task.checkCancellation()
-            guard ticket == generation else { return }
-            guard playable else { throw ASMRAPIError.invalidResponse }
-            let item = AVPlayerItem(asset:asset)
+            // A cached file plays offline; otherwise the stream spools into the cache as it plays.
+            let key = AudioPlaybackCache.key(for:selected.track,workID:selected.item.id)
+            let item: AVPlayerItem
+            if let file = cache.file(for:key) {
+                cache.protect(file); cachedFileKey = key
+                item = AVPlayerItem(url:file)
+            } else if let (spooled,job) = cache.makeItem(url:url,key:key,expectedBytes:selected.track.node.size) {
+                audioCacheJob = job
+                item = spooled
+            } else {
+                let asset = AVURLAsset(url:url)
+                let playable = try await asset.load(.isPlayable)
+                try Task.checkCancellation()
+                guard ticket == generation else { return }
+                guard playable else { throw ASMRAPIError.invalidResponse }
+                item = AVPlayerItem(asset:asset)
+            }
             observe(item); player.replaceCurrentItem(with:item); player.volume = 1
             activateSession()
             if wantsPlayback { player.playImmediately(atRate:playbackRate) } else { phase = .paused }
@@ -361,13 +379,24 @@ final class PlaybackCoordinator {
         item.publisher(for: \.status)
             .receive(on: RunLoop.main)
             .sink { [weak self] status in
-                if status == .failed { self?.phase = .failed("播放失败，请稍后再试") }
+                guard status == .failed, let self else { return }
+                // A damaged cached file or a failed spool must not be played or kept again.
+                if let key = self.cachedFileKey { self.cache.remove(key); self.cachedFileKey = nil }
+                self.cache.discard(self.audioCacheJob); self.audioCacheJob = nil
+                self.phase = .failed("播放失败，请稍后再试")
             }
             .store(in: &itemCancellables)
         NotificationCenter.default.publisher(for: AVPlayerItem.didPlayToEndTimeNotification, object: item)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.didFinish() }
             .store(in: &itemCancellables)
+    }
+
+    /// Hands the current track's spool back to the cache: a nearly finished track keeps downloading.
+    private func releaseAudioCache() {
+        cache.leave(audioCacheJob,listened:elapsed,duration:duration ?? 0)
+        audioCacheJob = nil; cachedFileKey = nil
+        cache.protect(nil)
     }
 
     private func didFinish() {

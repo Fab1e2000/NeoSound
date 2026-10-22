@@ -61,7 +61,7 @@ struct ItemDetailView: View {
         .sheet(item:$extras) { kind in NavigationStack { ExtrasList(kind:kind,work:work,entries:entries(for:kind)) } }
         .task(id:store.client.baseURL) { await load() }
         .task(id:translatesTitles) { if translatesTitles { translator.request(work.title) } }
-        .refreshable { await load() }
+        .refreshable { await load(refresh:true) }
     }
 
     // MARK: Title and summary
@@ -352,13 +352,14 @@ struct ItemDetailView: View {
 
     // MARK: Loading and playback
 
-    private func load() async {
+    private func load(refresh: Bool = false) async {
         generation += 1; let ticket = generation
         loading = true; error = nil
         defer { if generation == ticket { loading = false } }
+        if detail == nil, let cached = store.cachedWork(item.id) { detail = cached }
         do {
-            async let metadata = store.client.work(item.id)
-            async let nodes = store.client.tracks(item.id)
+            async let metadata = store.work(item.id,refresh:refresh)
+            async let nodes = store.tracks(item.id,refresh:refresh)
             let (work,tree) = try await (metadata,nodes)
             try Task.checkCancellation()
             guard generation == ticket else { return }
