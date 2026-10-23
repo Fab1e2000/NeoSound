@@ -1,7 +1,7 @@
 import Foundation
 
 /// One copy of the main tracks: the site often ships the same tracks as MP3/WAV, with and without sound effects.
-nonisolated struct TrackVersion: Hashable, Sendable {
+nonisolated struct TrackVersion: Codable, Hashable, Sendable {
     let format: String
     let withSE: Bool
 }

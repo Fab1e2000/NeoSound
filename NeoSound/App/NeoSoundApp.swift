@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct NeoSoundApp: App {
+    @UIApplicationDelegateAdaptor(DownloadAppDelegate.self) private var downloadDelegate
     @State private var store: ASMRStore
     @State private var playback: PlaybackCoordinator
     @State private var router = AppRouter()
@@ -19,6 +20,7 @@ struct NeoSoundApp: App {
                                    directory:URL.cachesDirectory.appending(path:"URLCache",directoryHint:.isDirectory))
         let store = ASMRStore()
         _store = State(initialValue: store)
+        VersionDownloadStore.shared.start(store:store)
         let playback = PlaybackCoordinator(store: store)
         let translator = TitleTranslator()
         // The player shows the same translated names as the detail page, honoring the settings switch.

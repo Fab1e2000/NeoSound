@@ -123,11 +123,19 @@ struct WorkArtwork: View {
         Rectangle().fill(.quaternary).aspectRatio(aspectRatio,contentMode:.fit)
             .overlay {
                 GeometryReader { geometry in
-                    AsyncImage(url:work.coverURL) { image in image.resizable().scaledToFill() } placeholder: {
-                        Image(systemName:"waveform").foregroundStyle(.secondary).frame(maxWidth:.infinity,maxHeight:.infinity)
+                    Group {
+                        if let local = VersionDownloadStore.shared.cover(workID:work.id), let image = UIImage(contentsOfFile:local.path) {
+                            Image(uiImage:image).resizable().scaledToFill()
+                        } else {
+                            AsyncImage(url:work.coverURL) { image in image.resizable().scaledToFill() } placeholder: {
+                                Image(systemName:"waveform").foregroundStyle(.secondary).frame(maxWidth:.infinity,maxHeight:.infinity)
+                            }
+                        }
                     }.frame(width:geometry.size.width,height:geometry.size.height).clipped()
                 }
-            }.clipShape(.rect(cornerRadius:radius)).accessibilityHidden(true)
+            }.clipShape(.rect(cornerRadius:radius))
+            .overlay(alignment:.bottomTrailing) { DownloadMark(workID:work.id) }
+            .accessibilityHidden(true)
     }
 }
 struct ItemCard: View {
@@ -148,7 +156,7 @@ struct ItemCard: View {
                                 .foregroundStyle(.white).background(.black.opacity(0.65),in:.rect(cornerRadius:4)).padding(5)
                         }
                     }
-                    .overlay(alignment:.bottomTrailing) {
+                    .overlay(alignment:.bottomLeading) {
                         if let release = item.release {
                             Text(release).font(.caption2).padding(3).foregroundStyle(.white).background(.black.opacity(0.65))
                         }
@@ -165,11 +173,6 @@ struct ItemCard: View {
                         HStack(spacing:4) {
                             ForEach(item.vas ?? []) { va in chip(va.name,namespace:"va",color:.green,prefix:"CV ") }
                             if let circle = item.circle { chip(circle.name,namespace:"circle",color:.orange) }
-                            if let duration = item.duration {
-                                Label(DurationFormat.clock(duration),systemImage:"clock")
-                                    .font(.caption2).padding(.horizontal,6).padding(.vertical,3)
-                                    .background(.quaternary,in:Capsule())
-                            }
                         }
                         .fixedSize(horizontal:true,vertical:false)
                     }

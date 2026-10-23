@@ -4,6 +4,7 @@ import SwiftUI
 enum LibraryRoute: Hashable {
     case playlist(UUID)
     case favoriteWorks
+    case downloads
 }
 
 /// Picks which local playlists hold a track; tapping a list adds or removes it.
@@ -84,6 +85,13 @@ struct PlaylistsView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                NavigationLink(value:LibraryRoute.downloads) {
+                    PlaylistCard(title:"下载的作品",caption:"\(VersionDownloadStore.shared.completedWorkCount) 部已下载") {
+                        Rectangle().fill(.tint).overlay {
+                            Image(systemName:"arrow.down.circle.fill").font(.system(size:48,weight:.semibold)).foregroundStyle(.white)
+                        }
+                    }
+                }.buttonStyle(.plain)
                 ForEach(playlists.playlists) { playlist in
                     NavigationLink(value:LibraryRoute.playlist(playlist.id)) {
                         PlaylistCard(title:playlist.name,caption:PlaylistSummary.text(playlist.tracks)) {

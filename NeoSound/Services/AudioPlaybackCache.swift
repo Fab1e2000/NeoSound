@@ -9,13 +9,14 @@ import Observation
     static let capacityKey = "audioCache.capacityGB"
     /// Capacity choices in GB; 0 turns caching off.
     static let capacityChoices = [0, 1, 2, 5, 10]
-    static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "flac", "ogg", "opus"]
+    nonisolated static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "flac", "ogg", "opus"]
 
     nonisolated struct Entry: Codable, Sendable {
         let key: String
         let filename: String
         let bytes: Int64
         var used: Date
+        var original: Bool?
     }
     /// A track's identity across fresh file trees: its file hash, else the work, folder and file name.
     /// The same rule playlists use to find a track again.
@@ -44,6 +45,7 @@ import Observation
     @ObservationIgnored private var detached: [UUID] = []
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var activeFiles = Set<URL>()
+    @ObservationIgnored private var exportingFiles: [URL: Int] = [:]
 
     init(directory: URL = URL.cachesDirectory.appendingPathComponent("ListeningAudio", isDirectory: true), defaults: UserDefaults = .standard,
          capacityOverride: Int64? = nil) {
@@ -76,24 +78,47 @@ import Observation
         entry.used = .now; entries[key] = entry; save()
         return url
     }
+    /// Only newly verified original streams are eligible; old/low-quality cache entries remain playable.
+    func exportOriginal(for track: PlaylistTrack, expectedBytes: Int64?, to destination: URL) async throws -> URL? {
+        let key = track.hash ?? "\(track.work.id)|\(track.path)|\(track.title)"
+        guard let entry = entries[key], entry.original == true,
+              expectedBytes == nil || expectedBytes == entry.bytes,
+              let source = file(for:key), Self.audioExtensions.contains(source.pathExtension) else { return nil }
+        exportingFiles[source,default:0] += 1
+        defer {
+            exportingFiles[source,default:1] -= 1
+            if exportingFiles[source] == 0 { exportingFiles[source] = nil }
+            if !activeFiles.contains(source), exportingFiles[source] == nil, !entries.values.contains(where: { $0.filename == source.lastPathComponent }) {
+                try? FileManager.default.removeItem(at:source)
+            }
+        }
+        try await Task.detached(priority:.utility) {
+            try FileManager.default.createDirectory(at:destination.deletingLastPathComponent(),withIntermediateDirectories:true)
+            try FileManager.default.copyItem(at:source,to:destination)
+        }.value
+        return destination
+    }
     /// The file being played is never evicted; the previous one is released.
     func protect(_ url: URL?) {
+        protectFiles(Set([url].compactMap { $0 }))
+    }
+    func protectFiles(_ urls: Set<URL>) {
         let previous = activeFiles
-        activeFiles = Set([url].compactMap { $0 })
-        for old in previous.subtracting(activeFiles) where old.deletingLastPathComponent().standardizedFileURL.path == directory.standardizedFileURL.path && !entries.values.contains(where: { $0.filename == old.lastPathComponent }) {
+        activeFiles = urls
+        for old in previous.subtracting(activeFiles) where exportingFiles[old] == nil && old.deletingLastPathComponent().standardizedFileURL.path == directory.standardizedFileURL.path && !entries.values.contains(where: { $0.filename == old.lastPathComponent }) {
             try? FileManager.default.removeItem(at: old)
         }
     }
     func remove(_ key: String) {
         guard let entry = entries.removeValue(forKey: key) else { return }
         let url = directory.appendingPathComponent(entry.filename)
-        if !activeFiles.contains(url) { try? FileManager.default.removeItem(at: url) }
+        if !activeFiles.union(exportingFiles.keys).contains(url) { try? FileManager.default.removeItem(at: url) }
         save()
     }
 
     /// A player item that streams `url` while spooling it to disk; nil when caching is off or the file
     /// is larger than the whole cache (the caller then plays the URL directly).
-    func makeItem(url: URL, key: String, expectedBytes: Int64?, configuration: URLSessionConfiguration = .ephemeral) -> (AVPlayerItem, UUID)? {
+    func makeItem(url: URL, key: String, expectedBytes: Int64?, original: Bool = false, configuration: URLSessionConfiguration = .ephemeral) -> (AVPlayerItem, UUID)? {
         guard isEnabled, (expectedBytes ?? 0) <= capacity else { return nil }
         let id = UUID(), generation = generation
         do {
@@ -102,7 +127,7 @@ import Observation
                     defer { if let file { try? FileManager.default.removeItem(at: file) } }
                     guard let self else { return }
                     if self.discarded.remove(id) == nil, self.generation == generation, let file {
-                        do { try self.commit(file, key: key, bytes: size, fileExtension: ext) }
+                        do { try self.commit(file, key: key, bytes: size, fileExtension: ext, original: original) }
                         catch { self.issue = "音频缓存保存失败，请检查可用空间。" }
                     }
                     guard self.jobs[id] != nil else { return }
@@ -133,16 +158,16 @@ import Observation
             while detached.count > 2 { let oldest = detached.removeFirst(); jobs.removeValue(forKey: oldest)?.cancel() }
         } else { jobs[id] = nil; job.cancel() }
     }
-    func commit(_ file: URL, key: String, bytes: Int64, fileExtension: String) throws {
+    func commit(_ file: URL, key: String, bytes: Int64, fileExtension: String, original: Bool = false) throws {
         guard bytes > 0, bytes <= capacity,
               (try file.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) == bytes else { throw ASMRAPIError.invalidResponse }
         let ext = Self.audioExtensions.contains(fileExtension.lowercased()) ? fileExtension.lowercased() : "audio"
         let filename = UUID().uuidString + "." + ext
         try FileManager.default.copyItem(at: file, to: directory.appendingPathComponent(filename))
-        if let old = entries[key], !activeFiles.contains(directory.appendingPathComponent(old.filename)) {
+        if let old = entries[key], !activeFiles.union(exportingFiles.keys).contains(directory.appendingPathComponent(old.filename)) {
             try? FileManager.default.removeItem(at: directory.appendingPathComponent(old.filename))
         }
-        entries[key] = Entry(key: key, filename: filename, bytes: bytes, used: .now)
+        entries[key] = Entry(key: key, filename: filename, bytes: bytes, used: .now, original: original)
         trim(); save()
     }
     /// In-flight streams keep serving playback, but cannot repopulate a cleared cache.
@@ -152,7 +177,7 @@ import Observation
         detached.removeAll()
         for (key, entry) in entries {
             let url = directory.appendingPathComponent(entry.filename)
-            if activeFiles.contains(url) { entries[key] = nil; continue }
+            if activeFiles.union(exportingFiles.keys).contains(url) { entries[key] = nil; continue }
             do { try FileManager.default.removeItem(at: url); entries[key] = nil }
             catch { issue = "部分缓存未能删除，请稍后重试。" }
         }
@@ -162,7 +187,7 @@ import Observation
         var total = entries.values.reduce(Int64(0)) { $0 + $1.bytes }
         for entry in entries.values.sorted(by: { $0.used < $1.used }) where total > capacity {
             let url = directory.appendingPathComponent(entry.filename)
-            guard !activeFiles.contains(url) else { continue }
+            guard !activeFiles.union(exportingFiles.keys).contains(url) else { continue }
             do { try FileManager.default.removeItem(at: url); entries[entry.key] = nil; total -= entry.bytes } catch {}
         }
     }

@@ -30,7 +30,7 @@ struct CacheSettingsSection: View {
             }
             Button("取消",role:.cancel) {}
         } message: {
-            Text("正在播放的音轨会在切换后释放。收藏、列表和下载的备份不受影响。")
+            Text("正在播放的音轨会在切换后释放。已下载的作品、收藏、列表和资料库备份不受影响。")
         }
         .onAppear { networkBytes = URLCache.shared.currentDiskUsage }
     }

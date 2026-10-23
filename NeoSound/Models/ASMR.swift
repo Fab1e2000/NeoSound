@@ -92,6 +92,10 @@ nonisolated struct ASMRNode: Decodable, Hashable, Sendable {
         duration = try c.decodeIfPresent(Double.self, forKey: .duration)
         size = try c.decodeIfPresent(Int64.self, forKey: .size)
     }
+    init(localURL: URL?, title: String, type: String, hash: String?, duration: Double?, size: Int64?) {
+        self.type = type; self.title = title; self.hash = hash; self.duration = duration; self.size = size
+        children = nil; mediaStreamUrl = localURL; mediaDownloadUrl = localURL; streamLowQualityUrl = nil
+    }
     /// The file's own stream; the low-quality copy is used only when the site offers no original stream.
     var streamURL: URL? { mediaStreamUrl ?? streamLowQualityUrl }
 }

@@ -14,6 +14,7 @@ struct SettingsSheet: View {
 
 /// Account on top, then what is shown, translation, appearance, network, cache, library and about.
 struct SettingsView: View {
+    @AppStorage(RootTabSettings.launchKey) private var launchTab = RootTab.browse.rawValue
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("translatesTitles") private var translatesTitles = true
     @AppStorage("showsSourceID") private var showsSourceID = false
@@ -44,6 +45,16 @@ struct SettingsView: View {
                     }
                 } header: { Text("标题翻译") } footer: {
                     Text("日语标题由 DeepSeek 翻译成简体中文，译文缓存在本机。")
+                }
+                Section("标签页") {
+                    Picker("启动时标签页",selection:Binding(
+                        get:{ RootTabSettings.launchTab(launchTab) },set:{ launchTab = $0.rawValue }
+                    )) {
+                        ForEach(RootTab.allCases) { Text($0.title).tag($0) }
+                    }
+                    NavigationLink { TabOrderSettingsView() } label: {
+                        Label("标签页排序",systemImage:"arrow.up.arrow.down")
+                    }
                 }
                 Section("外观") {
                     Picker(selection:$appearance) {
@@ -122,5 +133,33 @@ private struct DeepSeekKeyView: View {
     }
     private func save(_ key: String?) {
         do { try translator.setAPIKey(key); apiKey = "" } catch { store.report(error) }
+    }
+}
+
+private struct TabOrderSettingsView: View {
+    @AppStorage(RootTabSettings.orderKey) private var storedOrder = RootTabSettings.defaultOrder
+    var body: some View {
+        List {
+            Section {
+                ForEach(RootTabSettings.order(from:storedOrder)) { tab in
+                    Label(tab.title,systemImage:tab.systemImage)
+                }
+                .onMove { source, destination in
+                    var order = RootTabSettings.order(from:storedOrder)
+                    order.move(fromOffsets:source,toOffset:destination)
+                    storedOrder = order.map(\.rawValue).joined(separator:",")
+                }
+                Label("搜索",systemImage:"magnifyingglass").foregroundStyle(.secondary).moveDisabled(true)
+            } footer: {
+                Text("拖动右侧把手调整顺序，立即生效。搜索固定在末尾。启动时标签页的选择在下次启动时生效。")
+            }
+            Section {
+                Button("恢复默认顺序") { storedOrder = RootTabSettings.defaultOrder }
+                    .disabled(storedOrder == RootTabSettings.defaultOrder)
+            }
+        }
+        .environment(\.editMode,.constant(.active))
+        .navigationTitle("标签页排序")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

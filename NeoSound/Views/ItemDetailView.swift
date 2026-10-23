@@ -41,6 +41,9 @@ struct ItemDetailView: View {
                 titleBlock.padding(.horizontal,20).padding(.top,18)
                 statsCard.padding(.horizontal,16).padding(.top,16)
                 actions.padding(.horizontal,16).padding(.top,14)
+                if let issue = VersionDownloadStore.shared.issue {
+                    Text(issue).font(.footnote).foregroundStyle(.secondary).padding(.horizontal,20).padding(.top,8)
+                }
                 trackSection.padding(.top,26)
                 if contents.hasExtras { extrasSection.padding(.top,28) }
                 infoSection.padding(.top,28)
@@ -112,12 +115,12 @@ struct ItemDetailView: View {
     }
 
     private var actions: some View {
-        HStack(spacing:12) {
+        HStack(spacing:8) {
             Button {
                 if isCurrentWork { playback.resume(); router.showsPlayer = true }
                 else if let first = tracks.first { play(first) }
             } label: {
-                Label(isCurrentWork ? "继续播放" : "播放",systemImage:"play.fill").frame(maxWidth:.infinity)
+                Label("播放",systemImage:"play.fill").frame(maxWidth:.infinity)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!isCurrentWork && tracks.isEmpty)
@@ -129,7 +132,10 @@ struct ItemDetailView: View {
             }
             .buttonStyle(.bordered)
             .sensoryFeedback(.selection,trigger:favorited)
+            VersionDownloadButton(work:work,version:version,tracks:tracks,entries:contents.main.map(\.entry) + contents.bonusAudio + contents.subtitles)
+                .buttonStyle(.bordered)
         }
+        .font(.subheadline)
         .controlSize(.large)
     }
 
@@ -356,6 +362,10 @@ struct ItemDetailView: View {
         generation += 1; let ticket = generation
         loading = true; error = nil
         defer { if generation == ticket { loading = false } }
+        let local = VersionDownloadStore.shared.localEntries(workID:item.id)
+        if !local.isEmpty, !loaded {
+            contents = WorkContents(local); version = contents.defaultVersion; loaded = true
+        }
         if detail == nil, let cached = store.cachedWork(item.id) { detail = cached }
         do {
             async let metadata = store.work(item.id,refresh:refresh)
@@ -369,7 +379,7 @@ struct ItemDetailView: View {
             // Keep the viewer's version choice across refreshes when it still exists.
             if version == nil || !rebuilt.versions.contains(version!) { version = rebuilt.defaultVersion }
             loaded = true
-        } catch { if generation == ticket, !(error is CancellationError), (error as? URLError)?.code != .cancelled { self.error = error.localizedDescription } }
+        } catch { if generation == ticket, !(error is CancellationError), (error as? URLError)?.code != .cancelled { if !loaded { self.error = error.localizedDescription } } }
     }
     private func play(_ track: TrackEntry) { playback.play(track,in:work,tracks:tracks); router.showsPlayer = true }
 }

@@ -15,7 +15,7 @@ struct RecommendView: View {
         ScrollView {
             VStack(alignment:.leading,spacing:16) {
                 if !store.loggedIn { signInCard }
-                Text(uuid == nil ? "热门作品" : "为你推荐").font(.title3.bold()).padding(.horizontal,4)
+                if uuid == nil { Text("热门作品").font(.title3.bold()).padding(.horizontal,4) }
                 WorkGrid(works:feed.works,loading:feed.loading)
                 if feed.loading && !feed.works.isEmpty { ProgressView().frame(maxWidth:.infinity) }
                 if let error = feed.error { RetryRow(message:error) { Task { await load(reset:feed.page == 0) } } }
